@@ -1,0 +1,126 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "t9-agentic-cal",
+	"compatibility_date": "2025-11-28",
+	"main": "./workers/app.ts",
+	// keep_vars: do NOT delete dashboard-set vars/secrets that aren't declared
+	// here. Required because the OSS-first config (DOMAINS, ORGANIZER_ADDR,
+	// AI_GATEWAY_ID, POLICY_AUD, TEAM_DOMAIN) is set in the dashboard, never
+	// committed — without this, `wrangler deploy` wipes them on every deploy.
+	"keep_vars": true,
+	"observability": {
+		"enabled": true
+	},
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"vars": {
+		// Production deploys must also define POLICY_AUD and TEAM_DOMAIN (secrets).
+		// TEAM_DOMAIN may be the base Access URL or the full /cdn-cgi/access/certs URL.
+		// The worker fails closed outside local development if Access is not configured.
+		//
+		// OPERATOR: DOMAINS, ORGANIZER_ADDR and AI_GATEWAY_ID are intentionally NOT
+		// committed here — set them as Worker *secrets* in the dashboard (Settings →
+		// Variables and Secrets) so the public repo stays generic and Workers Builds
+		// never overwrites them. Examples:
+		//   DOMAINS=example.com
+		//   ORGANIZER_ADDR=calendar@example.com   (may double as the monitored inbox; dispatch routes by payload+UID, not address — spec §7.1)
+		//   AI_GATEWAY_ID=<your gateway name>     ("" calls Workers AI directly)
+		"EMAIL_ADDRESSES": [],
+		// Agent model (chat panel + auto-draft). Must support function calling.
+		"AGENT_MODEL": "@cf/google/gemma-4-26b-a4b-it"
+	},
+	"send_email": [
+		{
+			"name": "EMAIL",
+			"remote": true
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "BUCKET",
+			"bucket_name": "agentic-inbox",
+			"preview_bucket_name": "agentic-inbox"
+		},
+		{
+			// Raw ICS snapshots from the calendar feed poller.
+			// OPERATOR: create before deploy — `wrangler r2 bucket create calendar-snapshots`
+			"binding": "SNAPSHOTS",
+			"bucket_name": "calendar-snapshots",
+			"preview_bucket_name": "calendar-snapshots"
+		}
+	],
+	"kv_namespaces": [
+		{
+			// ETag/Last-Modified mirror for conditional feed GETs.
+			// The Deploy-to-Cloudflare flow replaces this id with a freshly
+			// provisioned namespace; manual cloners: create your own with
+			// `wrangler kv namespace create calendar-feed-cache` and paste its id.
+			// (An account-scoped identifier, not a secret — harmless to publish, but
+			// the operator may swap it for a placeholder at the formal OSS cut.)
+			"binding": "FEED_CACHE",
+			"id": "0daed268f3964eccb0ed5d9087fb5b73"
+		}
+	],
+	"triggers": {
+		"crons": ["*/10 * * * *"]
+	},
+	"workflows": [
+		{
+			// Invite lifecycle per block: send iMIP x3, wait for acceptances,
+			// nag, finalize. Instance id = block UID.
+			"name": "block-time",
+			"binding": "BLOCK_WORKFLOW",
+			"class_name": "BlockTimeWorkflow"
+		}
+	],
+	"ai": {
+		"binding": "AI"
+	},
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "MAILBOX",
+				"class_name": "MailboxDO"
+			},
+			{
+				"name": "EMAIL_AGENT",
+				"class_name": "EmailAgent"
+			},
+			{
+				"name": "EMAIL_MCP",
+				"class_name": "EmailMCP"
+			},
+			{
+				"name": "CALENDAR_DO",
+				"class_name": "CalendarDO"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": [
+				"MailboxDO"
+			]
+		},
+		{
+			"tag": "v2",
+			"new_sqlite_classes": [
+				"EmailAgent"
+			]
+		},
+		{
+			"tag": "v3",
+			"new_sqlite_classes": [
+				"EmailMCP"
+			]
+		},
+		{
+			"tag": "v4",
+			"new_sqlite_classes": [
+				"CalendarDO"
+			]
+		}
+	]
+}

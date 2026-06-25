@@ -1,0 +1,67 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1100" height="680" viewBox="0 0 1100 680" fill="none">
+  <defs>
+    <pattern id="bp" width="22" height="22" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#0E0E0E" opacity="0.06"></circle></pattern>
+    <clipPath id="clip"><rect x="1" y="1" width="1098" height="678" rx="16"></rect></clipPath>
+    <marker id="ah" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0.5,0.5 L6.5,3 L0.5,5.5" fill="none" stroke="#2A2A2A" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></marker>
+  </defs>
+
+  <rect x="0.5" y="0.5" width="1099" height="679" rx="16" fill="#FAFAF8" stroke="#ECECEC"></rect>
+  <g clip-path="url(#clip)"><rect width="1100" height="680" fill="url(#bp)"></rect></g>
+
+  <text x="48" y="56" font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="11" letter-spacing="1.8" fill="#A8A8A8">FIG.05 — INBOUND DISPATCH</text>
+  <text x="48" y="84" font-family="&#39;Geist&#39;,&#39;Inter&#39;,system-ui,sans-serif" font-size="21" font-weight="600" fill="#0E0E0E">Payload + UID ownership, never by address</text>
+  <text x="48" y="106" font-family="&#39;Geist&#39;,&#39;Inter&#39;,system-ui,sans-serif" font-size="13" fill="#6B6B6B">The ORGANIZER address is also the monitored inbox — so routing keys on the message, not the recipient. Zero mail loss.</text>
+
+  
+  <g><rect x="400" y="132" width="300" height="62" rx="10" fill="#0E0E0E"></rect>
+    <text x="550" y="158" text-anchor="middle" font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="13" fill="#FAFAF8">Inbound email → email()</text>
+    <text x="550" y="178" text-anchor="middle" font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="11" fill="#A8A8A8">parse (postal-mime)</text></g>
+  <path d="M550 194 L550 204" stroke="#2A2A2A" stroke-width="1.5" fill="none" marker-end="url(#ah)"></path>
+
+  
+  <polygon points="550,208 686,262 550,316 414,262" fill="#FFFFFF" stroke="#0E0E0E" stroke-width="1.4"></polygon>
+  <text x="550" y="250" text-anchor="middle" font-family="&#39;Geist&#39;,&#39;Inter&#39;,system-ui,sans-serif" font-size="12" font-weight="600" fill="#0E0E0E">text/calendar part w/</text>
+  <text x="550" y="266" text-anchor="middle" font-family="&#39;Geist&#39;,&#39;Inter&#39;,system-ui,sans-serif" font-size="12" font-weight="600" fill="#0E0E0E">inbound iTIP METHOD?</text>
+  <text x="550" y="284" text-anchor="middle" font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="9" fill="#6B6B6B">REPLY · COUNTER · CANCEL</text>
+
+  
+  <polygon points="550,374 686,428 550,482 414,428" fill="#FFFFFF" stroke="#0E0E0E" stroke-width="1.4"></polygon>
+  <text x="550" y="418" text-anchor="middle" font-family="&#39;Geist&#39;,&#39;Inter&#39;,system-ui,sans-serif" font-size="12" font-weight="600" fill="#0E0E0E">iTIP UID matches</text>
+  <text x="550" y="434" text-anchor="middle" font-family="&#39;Geist&#39;,&#39;Inter&#39;,system-ui,sans-serif" font-size="12" font-weight="600" fill="#0E0E0E">one of our blocks?</text>
+  <text x="550" y="452" text-anchor="middle" font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="9" fill="#6B6B6B">UID OWNERSHIP</text>
+
+  
+  <path d="M550 316 L550 370" stroke="#2A2A2A" stroke-width="1.5" fill="none" marker-end="url(#ah)"></path>
+  <text x="558" y="346" font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="11" fill="#0E0E0E">YES</text>
+
+  
+  <rect x="80" y="380" width="280" height="116" rx="12" fill="#FAFAF8" stroke="#0E0E0E" stroke-width="1.4"></rect>
+  <text x="100" y="412" font-family="&#39;Geist&#39;,&#39;Inter&#39;,system-ui,sans-serif" font-size="16" font-weight="600" fill="#0E0E0E">MAILBOX PATH</text>
+  <text x="100" y="438" font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="10" fill="#6B6B6B">plain mail · bounces</text>
+  <text x="100" y="454" font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="10" fill="#6B6B6B">OOO auto-replies</text>
+  <text x="100" y="478" font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="10" fill="#A8A8A8">foreign UID — fall through</text>
+
+  
+  <path d="M414 262 L230 262 L230 376" stroke="#2A2A2A" stroke-width="1.5" fill="none" marker-end="url(#ah)"></path>
+  <text x="360" y="254" font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="11" fill="#0E0E0E">NO</text>
+
+  
+  <path d="M414 428 L380 428 L380 438 L364 438" stroke="#2A2A2A" stroke-width="1.5" fill="none" marker-end="url(#ah)"></path>
+  <text x="386" y="420" font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="11" fill="#0E0E0E">NO</text>
+
+  
+  <rect x="620" y="520" width="400" height="96" rx="12" fill="#0E0E0E"></rect>
+  <text x="644" y="556" font-family="&#39;Geist&#39;,&#39;Inter&#39;,system-ui,sans-serif" font-size="16" font-weight="600" fill="#FAFAF8">CALENDAR PATH</text>
+  <text x="644" y="586" font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="12" fill="#D9D9D9">recordReply → BlockTimeWorkflow</text>
+
+  
+  <path d="M550 482 L550 568 L616 568" stroke="#2A2A2A" stroke-width="1.5" fill="none" marker-end="url(#ah)"></path>
+  <text x="558" y="512" font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="11" fill="#0E0E0E">YES · UID owned</text>
+
+  
+  <rect x="724" y="220" width="300" height="96" rx="12" fill="#FFFFFF" stroke="#ECECEC"></rect>
+  <text x="744" y="246" font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="22" fill="#D9D9D9">“</text>
+  <text x="744" y="268" font-family="&#39;Geist&#39;,&#39;Inter&#39;,system-ui,sans-serif" font-size="13" fill="#2A2A2A">An address shortcut would swallow</text>
+  <text x="744" y="287" font-family="&#39;Geist&#39;,&#39;Inter&#39;,system-ui,sans-serif" font-size="13" fill="#2A2A2A">ordinary mail — so we never use one.</text>
+  <text x="744" y="306" font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="10" letter-spacing="1.2" fill="#A8A8A8">ROUTE ON MESSAGE, NOT RECIPIENT</text>
+</svg>

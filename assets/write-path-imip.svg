@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="870" viewBox="0 0 1200 870" fill="none">
+  <defs>
+    <pattern id="bp" width="22" height="22" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#0E0E0E" opacity="0.06"></circle></pattern>
+    <clipPath id="clip"><rect x="1" y="1" width="1198" height="868" rx="16"></rect></clipPath>
+    <marker id="ah" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0.5,0.5 L6.5,3 L0.5,5.5" fill="none" stroke="#2A2A2A" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></marker>
+    <marker id="ahd" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0.5,0.5 L6.5,3 L0.5,5.5" fill="none" stroke="#6B6B6B" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></marker>
+  </defs>
+
+  <rect x="0.5" y="0.5" width="1199" height="869" rx="16" fill="#FAFAF8" stroke="#ECECEC"></rect>
+  <g clip-path="url(#clip)"><rect width="1200" height="870" fill="url(#bp)"></rect></g>
+
+  <text x="48" y="56" font-family="'Geist Mono',ui-monospace,monospace" font-size="11" letter-spacing="1.8" fill="#A8A8A8">FIG.04 — WRITE PATH ★ SHOWPIECE</text>
+  <text x="48" y="84" font-family="'Geist','Inter',system-ui,sans-serif" font-size="21" font-weight="600" fill="#0E0E0E">Blocking time by email — iMIP (RFC 5546 over RFC 6047)</text>
+  <text x="48" y="106" font-family="'Geist','Inter',system-ui,sans-serif" font-size="13" fill="#6B6B6B">Clients accept; providers do the writing. No OAuth, no CalDAV, no provider APIs.</text>
+
+  <g>
+    <line x1="900" y1="116" x2="936" y2="116" stroke="#2A2A2A" stroke-width="1.5"></line>
+    <text x="944" y="120" font-family="'Geist','Inter',system-ui,sans-serif" font-size="11" fill="#6B6B6B">in-process</text>
+    <line x1="1030" y1="116" x2="1066" y2="116" stroke="#6B6B6B" stroke-width="1.5" stroke-dasharray="5 4"></line>
+    <text x="1074" y="120" font-family="'Geist','Inter',system-ui,sans-serif" font-size="11" fill="#6B6B6B">email hop</text>
+  </g>
+
+  <g font-family="'Geist','Inter',system-ui,sans-serif">
+    <g><rect x="92" y="138" width="176" height="50" rx="10" fill="#0E0E0E"></rect><text x="180" y="168" text-anchor="middle" font-size="14" font-weight="600" fill="#FAFAF8">Agent</text></g>
+    <g><rect x="458" y="138" width="284" height="50" rx="10" fill="#0E0E0E"></rect><text x="600" y="162" text-anchor="middle" font-size="14" font-weight="600" fill="#FAFAF8">Worker / BlockTimeWorkflow</text><text x="600" y="179" text-anchor="middle" font-family="'Geist Mono',ui-monospace,monospace" font-size="9" fill="#A8A8A8">in-process</text></g>
+    <g><rect x="894" y="138" width="252" height="50" rx="10" fill="#0E0E0E"></rect><text x="1020" y="162" text-anchor="middle" font-size="14" font-weight="600" fill="#FAFAF8">Each account</text><text x="1020" y="179" text-anchor="middle" font-family="'Geist Mono',ui-monospace,monospace" font-size="9" fill="#A8A8A8">Proton · Outlook · iCloud</text></g>
+  </g>
+
+  <g stroke="#D9D9D9" stroke-width="1" stroke-dasharray="3 4">
+    <line x1="180" y1="188" x2="180" y2="540"></line>
+    <line x1="600" y1="188" x2="600" y2="540"></line>
+    <line x1="1020" y1="188" x2="1020" y2="540"></line>
+  </g>
+  <line x1="600" y1="222" x2="600" y2="540" stroke="#6B6B6B" stroke-width="1.5"></line>
+  <g stroke="#6B6B6B" stroke-width="1.5">
+    <line x1="171" y1="540" x2="189" y2="540"></line>
+    <line x1="591" y1="540" x2="609" y2="540"></line>
+    <line x1="1011" y1="540" x2="1029" y2="540"></line>
+  </g>
+
+  <g font-family="'Geist Mono',ui-monospace,monospace" font-size="11" fill="#FAFAF8">
+    <g><circle cx="58" cy="230" r="11" fill="#0E0E0E"></circle><text x="58" y="234" text-anchor="middle">1</text></g>
+    <g><circle cx="58" cy="300" r="11" fill="#0E0E0E"></circle><text x="58" y="304" text-anchor="middle">2</text></g>
+    <g><circle cx="58" cy="372" r="11" fill="#0E0E0E"></circle><text x="58" y="376" text-anchor="middle">3</text></g>
+    <g><circle cx="58" cy="444" r="11" fill="#0E0E0E"></circle><text x="58" y="448" text-anchor="middle">4</text></g>
+    <g><circle cx="58" cy="508" r="11" fill="#0E0E0E"></circle><text x="58" y="512" text-anchor="middle">5</text></g>
+  </g>
+
+  <text x="184" y="222" font-family="'Geist Mono',ui-monospace,monospace" font-size="12" fill="#0E0E0E">block_time(start, end, title)</text>
+  <path d="M180 230 L598 230" stroke="#2A2A2A" stroke-width="1.5" fill="none" marker-end="url(#ah)"></path>
+  <text x="184" y="248" font-family="'Geist','Inter',system-ui,sans-serif" font-size="11" fill="#6B6B6B">conflict-checked · refuses with conflict list unless force=true</text>
+
+  <text x="576" y="292" text-anchor="end" font-family="'Geist Mono',ui-monospace,monospace" font-size="12" fill="#0E0E0E">return "pending"</text>
+  <path d="M600 300 L182 300" stroke="#2A2A2A" stroke-width="1.5" fill="none" marker-end="url(#ah)"></path>
+  <text x="184" y="318" font-family="'Geist','Inter',system-ui,sans-serif" font-size="11" fill="#6B6B6B">slot counts as busy right away</text>
+  <text x="616" y="284" font-family="'Geist Mono',ui-monospace,monospace" font-size="10" fill="#6B6B6B">↳ start BlockTimeWorkflow · id = block UID</text>
+
+  <text x="608" y="364" font-family="'Geist Mono',ui-monospace,monospace" font-size="12" fill="#0E0E0E">METHOD:REQUEST · invite ×3</text>
+  <path d="M600 372 L1018 372" stroke="#6B6B6B" stroke-width="1.5" stroke-dasharray="5 4" fill="none" marker-end="url(#ahd)"></path>
+  <text x="1016" y="390" text-anchor="end" font-family="'Geist','Inter',system-ui,sans-serif" font-size="11" fill="#6B6B6B">native client renders a normal meeting invite</text>
+
+  <text x="1012" y="436" text-anchor="end" font-family="'Geist Mono',ui-monospace,monospace" font-size="12" fill="#0E0E0E">METHOD:REPLY · PARTSTAT=ACCEPTED</text>
+  <path d="M1018 444 L600 444" stroke="#6B6B6B" stroke-width="1.5" stroke-dasharray="5 4" fill="none" marker-end="url(#ahd)"></path>
+  <text x="616" y="462" font-family="'Geist Mono',ui-monospace,monospace" font-size="10" fill="#6B6B6B">↳ same email() handler · dispatch → recordReply → workflow.waitForEvent</text>
+
+  <text x="608" y="500" font-family="'Geist Mono',ui-monospace,monospace" font-size="12" fill="#0E0E0E">nag</text>
+  <text x="642" y="500" font-family="'Geist','Inter',system-ui,sans-serif" font-size="11" fill="#6B6B6B">· if any still NEEDS-ACTION</text>
+  <path d="M600 508 L1018 508" stroke="#6B6B6B" stroke-width="1.5" stroke-dasharray="5 4" fill="none" marker-end="url(#ahd)"></path>
+
+  <rect x="48" y="582" width="1104" height="238" rx="14" fill="#FFFFFF" stroke="#ECECEC"></rect>
+  <text x="72" y="612" font-family="'Geist Mono',ui-monospace,monospace" font-size="10" letter-spacing="1.6" fill="#A8A8A8">AFTER REPLIES ARRIVE — STATE &amp; OUTCOME</text>
+
+  <text x="72" y="648" font-family="'Geist Mono',ui-monospace,monospace" font-size="11" fill="#6B6B6B">PER-ACCOUNT STATE</text>
+  <g font-family="'Geist Mono',ui-monospace,monospace" font-size="11" fill="#0E0E0E" text-anchor="middle">
+    <g><rect x="72" y="660" width="150" height="26" rx="13" fill="#FFFFFF" stroke="#0E0E0E"></rect><text x="147" y="677">ACCEPTED</text></g>
+    <g><rect x="234" y="660" width="150" height="26" rx="13" fill="#FFFFFF" stroke="#6B6B6B"></rect><text x="309" y="677">TENTATIVE</text></g>
+    <g><rect x="72" y="694" width="150" height="26" rx="13" fill="#FFFFFF" stroke="#6B6B6B"></rect><text x="147" y="711">DECLINED</text></g>
+    <g><rect x="234" y="694" width="150" height="26" rx="13" fill="#FAFAF8" stroke="#6B6B6B" stroke-dasharray="4 3"></rect><text x="309" y="711">NEEDS-ACTION</text></g>
+  </g>
+
+  <text x="72" y="756" font-family="'Geist Mono',ui-monospace,monospace" font-size="11" fill="#6B6B6B">finalize → status</text>
+  <g font-family="'Geist Mono',ui-monospace,monospace" font-size="11" text-anchor="middle">
+    <g><rect x="72" y="768" width="100" height="28" rx="8" fill="#0E0E0E"></rect><text x="122" y="786" fill="#FAFAF8">confirmed</text></g>
+    <g><rect x="184" y="768" width="100" height="28" rx="8" fill="#FFFFFF" stroke="#6B6B6B"></rect><text x="234" y="786" fill="#0E0E0E">partial</text></g>
+    <g><rect x="296" y="768" width="100" height="28" rx="8" fill="#FFFFFF" stroke="#D9D9D9"></rect><text x="346" y="786" fill="#6B6B6B">pending</text></g>
+  </g>
+  <text x="408" y="786" font-family="'Geist','Inter',system-ui,sans-serif" font-size="11" fill="#6B6B6B">↳ notify operator on partial</text>
+
+  <line x1="612" y1="636" x2="612" y2="790" stroke="#ECECEC" stroke-dasharray="2 4"></line>
+
+  <text x="652" y="648" font-family="'Geist Mono',ui-monospace,monospace" font-size="11" fill="#6B6B6B">CANCEL PATH</text>
+  <g><rect x="652" y="666" width="130" height="28" rx="8" fill="#FFFFFF" stroke="#0E0E0E"></rect><text x="717" y="684" text-anchor="middle" font-family="'Geist Mono',ui-monospace,monospace" font-size="11" fill="#0E0E0E">cancel_block</text></g>
+  <path d="M782 680 L824 680" stroke="#6B6B6B" stroke-width="1.5" stroke-dasharray="5 4" fill="none" marker-end="url(#ahd)"></path>
+  <text x="834" y="684" font-family="'Geist Mono',ui-monospace,monospace" font-size="11" fill="#0E0E0E">METHOD:CANCEL (SEQUENCE bumped)</text>
+  <text x="652" y="724" font-family="'Geist','Inter',system-ui,sans-serif" font-size="11" fill="#6B6B6B">→ every account removes the event from its calendar</text>
+</svg>
