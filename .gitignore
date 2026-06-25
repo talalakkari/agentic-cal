@@ -1,0 +1,37 @@
+node_modules/
+build/
+.wrangler/
+.react-router/
+*.tsbuildinfo
+*.tgz
+.env
+.env.*
+!.env.example
+.dev.vars
+!.dev.vars.example
+
+# Operator-private docs and agent instructions (kept local, not published)
+docs/
+CLAUDE.md
+AGENTS.md
+CHANGELOG.md
+# Program-coordinator hub channel (Channel F) + local agent context — never published
+prompts/
+CLAUDE.local.md
+# All agent tooling stays local: commands, skills, and settings.local.json reference Channel F /
+# program context that must never enter this OSS-first repo. (Was a single stale
+# .claude/commands/check-inbox.md rule that left .claude/skills/* and settings.local.json exposed.)
+# Negate a specific path here if an example skill is ever meant to publish.
+.claude/
+.vite/
+dist/
+snapshot-*.txt
+.agents/
+opencode.jsonc
+skills-lock.json
+.DS_Store
+worker-configuration.d.ts
+.gstack/
+# Claude Design export — the .dc.html gallery wrapper needs its runtime and won't
+# render on GitHub; the exported SVGs it references ARE committed under assets/.
+*.dc.html

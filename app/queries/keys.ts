@@ -1,0 +1,34 @@
+// Copyright (c) 2026 Cloudflare, Inc.
+// Licensed under the Apache 2.0 license found in the LICENSE file or at:
+//     https://opensource.org/licenses/Apache-2.0
+
+/** Centralised query key factories for cache invalidation. */
+export const queryKeys = {
+	mailboxes: {
+		all: ["mailboxes"] as const,
+		detail: (id: string) => ["mailboxes", id] as const,
+	},
+	emails: {
+		list: (mailboxId: string, params: Record<string, string>) =>
+			["emails", mailboxId, params] as const,
+		detail: (mailboxId: string, emailId: string) =>
+			["emails", mailboxId, emailId] as const,
+		thread: (mailboxId: string, threadId: string) =>
+			["emails", mailboxId, "thread", threadId] as const,
+	},
+	folders: {
+		list: (mailboxId: string) => ["folders", mailboxId] as const,
+	},
+	search: {
+		results: (mailboxId: string, query: string, page: number) =>
+			["search", mailboxId, query, page] as const,
+	},
+	calendar: {
+		feeds: ["calendar", "feeds"] as const,
+		stats: ["calendar", "stats"] as const,
+		blocks: ["calendar", "blocks"] as const,
+		events: (from: string, to: string) =>
+			["calendar", "events", from, to] as const,
+	},
+	config: ["config"] as const,
+};

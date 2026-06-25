@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="360" viewBox="0 0 1280 360" fill="none">
+  <defs>
+    <pattern id="blueprint" width="22" height="22" patternUnits="userSpaceOnUse">
+      <circle cx="1" cy="1" r="1" fill="#0E0E0E" opacity="0.06"></circle>
+    </pattern>
+    <clipPath id="panelClip"><rect x="1" y="1" width="1278" height="358" rx="16"></rect></clipPath>
+  </defs>
+
+  
+  <rect x="0.5" y="0.5" width="1279" height="359" rx="16" fill="#FAFAF8" stroke="#ECECEC"></rect>
+  <g clip-path="url(#panelClip)"><rect x="0" y="0" width="1280" height="360" fill="url(#blueprint)"></rect></g>
+
+  
+  <g>
+    <text x="64" y="160" font-family="&#39;Geist Mono&#39;,&#39;JetBrains Mono&#39;,ui-monospace,monospace" font-size="62" font-weight="600" letter-spacing="-2" fill="#0E0E0E">agentic-cal</text>
+    <rect x="66" y="188" width="44" height="3" fill="#0E0E0E"></rect>
+    <text x="66" y="226" font-family="&#39;Geist&#39;,&#39;Inter&#39;,system-ui,sans-serif" font-size="20" font-weight="400" fill="#6B6B6B">Agentic email + calendar hub on Cloudflare Workers.</text>
+    <text x="66" y="290" font-family="&#39;Geist Mono&#39;,&#39;JetBrains Mono&#39;,ui-monospace,monospace" font-size="11" letter-spacing="1.6" fill="#A8A8A8">OPEN SOURCE · SINGLE WORKER · iMIP / RFC 5546</text>
+  </g>
+
+  
+  <g stroke="#0E0E0E" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round" fill="none">
+    
+    <g opacity="0.9">
+      <rect x="760" y="118" width="150" height="104" rx="8"></rect>
+      <path d="M760 132 L835 178 L910 132"></path>
+    </g>
+
+    
+    <g stroke-dasharray="2 7" opacity="0.55">
+      <path d="M912 150 L992 150"></path>
+      <path d="M912 178 L992 178"></path>
+      <path d="M912 206 L992 206"></path>
+    </g>
+    <g fill="#0E0E0E" stroke="none" opacity="0.35">
+      <circle cx="930" cy="120" r="1.6"></circle><circle cx="952" cy="128" r="1.6"></circle><circle cx="946" cy="232" r="1.6"></circle><circle cx="970" cy="222" r="1.6"></circle>
+    </g>
+
+    
+    <g>
+      <rect x="1000" y="100" width="216" height="160" rx="10"></rect>
+      <path d="M1000 130 L1216 130"></path>
+      <path d="M1040 100 L1040 92"></path><path d="M1176 100 L1176 92"></path>
+      
+      <path d="M1036 130 L1036 260" opacity="0.55"></path>
+      <path d="M1072 130 L1072 260" opacity="0.55"></path>
+      <path d="M1108 130 L1108 260" opacity="0.55"></path>
+      <path d="M1144 130 L1144 260" opacity="0.55"></path>
+      <path d="M1180 130 L1180 260" opacity="0.55"></path>
+      
+      <path d="M1000 162 L1216 162" opacity="0.55"></path>
+      <path d="M1000 194 L1216 194" opacity="0.55"></path>
+      <path d="M1000 226 L1216 226" opacity="0.55"></path>
+    </g>
+    
+    <g fill="#0E0E0E" stroke="none">
+      <rect x="1075" y="133" width="30" height="26" rx="3" opacity="0.88"></rect>
+      <rect x="1147" y="165" width="30" height="26" rx="3" opacity="0.7"></rect>
+      <rect x="1039" y="197" width="30" height="26" rx="3" opacity="0.5"></rect>
+      <rect x="1183" y="229" width="30" height="26" rx="3" opacity="0.88"></rect>
+    </g>
+    <text x="1012" y="120" font-family="&#39;Geist Mono&#39;,&#39;JetBrains Mono&#39;,ui-monospace,monospace" font-size="10" letter-spacing="1.4" fill="#A8A8A8" stroke="none">BUSY / FREE</text>
+  </g>
+</svg>

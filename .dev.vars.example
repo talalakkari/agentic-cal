@@ -1,0 +1,13 @@
+# Cloudflare Access (required in production). TEAM_DOMAIN may be the base Access URL or the full /cdn-cgi/access/certs URL.
+POLICY_AUD=your-access-policy-audience-tag
+TEAM_DOMAIN=https://your-team.cloudflareaccess.com
+
+# Calendar + domain config. In production these are set as Worker secrets in the
+# Cloudflare dashboard (Settings → Variables and Secrets), not in wrangler.jsonc.
+DOMAINS=example.com
+ORGANIZER_ADDR=calendar@example.com
+AI_GATEWAY_ID=
+
+# Optional: email address to notify when a calendar block finalizes as `partial`
+# (a decline). Leave unset to disable the notification.
+# OPERATOR_NOTIFY_ADDR=you@example.com

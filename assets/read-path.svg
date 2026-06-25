@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560" fill="none">
+  <defs>
+    <pattern id="bp" width="22" height="22" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r="1" fill="#0E0E0E" opacity="0.06"></circle></pattern>
+    <clipPath id="clip"><rect x="1" y="1" width="1198" height="558" rx="16"></rect></clipPath>
+    <marker id="ah" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0.5,0.5 L6.5,3 L0.5,5.5" fill="none" stroke="#2A2A2A" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></marker>
+    <marker id="ahd" markerWidth="9" markerHeight="9" refX="6.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path d="M0.5,0.5 L6.5,3 L0.5,5.5" fill="none" stroke="#6B6B6B" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"></path></marker>
+  </defs>
+
+  <rect x="0.5" y="0.5" width="1199" height="559" rx="16" fill="#FAFAF8" stroke="#ECECEC"></rect>
+  <g clip-path="url(#clip)"><rect width="1200" height="560" fill="url(#bp)"></rect></g>
+
+  <text x="48" y="60" font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="11" letter-spacing="1.8" fill="#A8A8A8">FIG.03 — READ PATH</text>
+  <text x="48" y="88" font-family="&#39;Geist&#39;,&#39;Inter&#39;,system-ui,sans-serif" font-size="22" font-weight="600" fill="#0E0E0E">Feed aggregation</text>
+
+  
+  <text x="64" y="138" font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="10" letter-spacing="1.4" fill="#A8A8A8">SOURCES — ICS PUBLISH LINKS</text>
+  <g font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="12">
+    <g><rect x="64" y="150" width="170" height="54" rx="10" fill="#FFFFFF" stroke="#6B6B6B"></rect><text x="80" y="174" fill="#0E0E0E">Proton</text><text x="80" y="192" font-size="10" fill="#6B6B6B">full</text></g>
+    <g><rect x="64" y="216" width="170" height="54" rx="10" fill="#FFFFFF" stroke="#6B6B6B"></rect><text x="80" y="240" fill="#0E0E0E">Outlook</text><text x="80" y="258" font-size="10" fill="#6B6B6B">busy-only</text></g>
+    <g><rect x="64" y="282" width="170" height="54" rx="10" fill="#FFFFFF" stroke="#6B6B6B"></rect><text x="80" y="306" fill="#0E0E0E">iCloud</text><text x="80" y="324" font-size="10" fill="#6B6B6B">full</text></g>
+  </g>
+  <g stroke="#6B6B6B" stroke-width="1.5" stroke-dasharray="5 4" fill="none" marker-end="url(#ahd)">
+    <path d="M234 177 L268 177 L268 230 L292 230"></path>
+    <path d="M234 243 L292 243"></path>
+    <path d="M234 309 L268 309 L268 256 L292 256"></path>
+  </g>
+
+  
+  <g><rect x="292" y="206" width="150" height="76" rx="10" fill="#FFFFFF" stroke="#0E0E0E"></rect>
+    <text x="308" y="226" font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="10" letter-spacing="1" fill="#A8A8A8">CRON */10</text>
+    <text x="308" y="252" font-family="&#39;Geist&#39;,&#39;Inter&#39;,system-ui,sans-serif" font-size="15" font-weight="600" fill="#0E0E0E">FeedPoller</text>
+    <text x="308" y="270" font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="10" fill="#6B6B6B">conditional GET</text></g>
+
+  
+  <text x="292" y="318" font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="10" letter-spacing="1.2" fill="#A8A8A8">CONDITIONAL GET</text>
+  <g><rect x="292" y="328" width="150" height="48" rx="10" fill="#FAFAF8" stroke="#6B6B6B"></rect><text x="367" y="350" text-anchor="middle" font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="11" fill="#0E0E0E">ETag via</text><text x="367" y="366" text-anchor="middle" font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="11" fill="#0E0E0E">KV: FEED_CACHE</text></g>
+  <path d="M367 282 L367 324" stroke="#2A2A2A" stroke-width="1.5" fill="none" marker-end="url(#ah)"></path>
+  <g font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="10">
+    <g><rect x="292" y="392" width="270" height="34" rx="8" fill="#FFFFFF" stroke="#D9D9D9"></rect><text x="304" y="413" fill="#0E0E0E">304 Not Modified → keep last good data</text></g>
+    <g><rect x="292" y="434" width="270" height="34" rx="8" fill="#FFFFFF" stroke="#D9D9D9"></rect><text x="304" y="455" fill="#0E0E0E">200 → snapshot to R2: SNAPSHOTS</text></g>
+  </g>
+  <g stroke="#2A2A2A" stroke-width="1.5" fill="none" marker-end="url(#ah)">
+    <path d="M367 376 L367 388"></path>
+    <path d="M367 382 L280 382 L280 451 L290 451"></path>
+  </g>
+
+  
+  <text x="600" y="138" font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="10" letter-spacing="1.4" fill="#0E0E0E">★ FOCAL — THE HARD PART</text>
+  <rect x="600" y="150" width="236" height="232" rx="12" fill="#FFFFFF" stroke="#0E0E0E" stroke-width="1.8"></rect>
+  <text x="620" y="186" font-family="&#39;Geist&#39;,&#39;Inter&#39;,system-ui,sans-serif" font-size="20" font-weight="600" fill="#0E0E0E">Normalize</text>
+  <line x1="620" y1="200" x2="816" y2="200" stroke="#ECECEC"></line>
+  <g font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="12" fill="#0E0E0E">
+    <g><rect x="620" y="216" width="196" height="34" rx="8" fill="#FAFAF8" stroke="#D9D9D9"></rect><text x="634" y="237">RRULE expansion</text></g>
+    <g><rect x="620" y="258" width="196" height="34" rx="8" fill="#FAFAF8" stroke="#D9D9D9"></rect><text x="634" y="279">EXDATE</text></g>
+    <g><rect x="620" y="300" width="196" height="34" rx="8" fill="#FAFAF8" stroke="#D9D9D9"></rect><text x="634" y="321">RECURRENCE-ID overrides</text></g>
+    <g><rect x="620" y="342" width="196" height="34" rx="8" fill="#FAFAF8" stroke="#D9D9D9"></rect><text x="634" y="363">VTIMEZONE / tz math</text></g>
+  </g>
+  <path d="M442 244 L596 244" stroke="#2A2A2A" stroke-width="1.5" fill="none" marker-end="url(#ah)"></path>
+
+  
+  <g><rect x="888" y="206" width="160" height="76" rx="10" fill="#FFFFFF" stroke="#0E0E0E"></rect><text x="904" y="240" font-family="&#39;Geist&#39;,&#39;Inter&#39;,system-ui,sans-serif" font-size="15" font-weight="600" fill="#0E0E0E">CalendarDO</text><text x="904" y="260" font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="10" fill="#6B6B6B">unified busy/free model</text></g>
+  <path d="M836 244 L884 244" stroke="#2A2A2A" stroke-width="1.5" fill="none" marker-end="url(#ah)"></path>
+
+  
+  <text x="888" y="316" font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="10" letter-spacing="1.4" fill="#A8A8A8">OUTPUTS</text>
+  <g font-family="&#39;Geist Mono&#39;,ui-monospace,monospace" font-size="12" fill="#0E0E0E">
+    <g><rect x="888" y="326" width="220" height="34" rx="17" fill="#FFFFFF" stroke="#0E0E0E"></rect><text x="998" y="347" text-anchor="middle">get_availability</text></g>
+    <g><rect x="888" y="368" width="220" height="34" rx="17" fill="#FFFFFF" stroke="#0E0E0E"></rect><text x="998" y="389" text-anchor="middle">find_free_slots</text></g>
+    <g><rect x="888" y="410" width="220" height="34" rx="17" fill="#FFFFFF" stroke="#0E0E0E"></rect><text x="998" y="431" text-anchor="middle">list_calendars</text></g>
+    <g><rect x="888" y="452" width="248" height="38" rx="10" fill="#FAFAF8" stroke="#6B6B6B" stroke-dasharray="4 3"></rect><text x="906" y="470" font-size="11" fill="#0E0E0E">⚠ feed_warnings</text><text x="906" y="484" font-size="9" fill="#6B6B6B">per-feed staleness</text></g>
+  </g>
+  <path d="M968 282 L968 322" stroke="#2A2A2A" stroke-width="1.5" fill="none" marker-end="url(#ah)"></path>
+
+  
+  <g>
+    <line x1="64" y1="512" x2="100" y2="512" stroke="#2A2A2A" stroke-width="1.5"></line>
+    <text x="110" y="516" font-family="&#39;Geist&#39;,&#39;Inter&#39;,system-ui,sans-serif" font-size="11" fill="#6B6B6B">in-process</text>
+    <line x1="200" y1="512" x2="236" y2="512" stroke="#6B6B6B" stroke-width="1.5" stroke-dasharray="5 4"></line>
+    <text x="246" y="516" font-family="&#39;Geist&#39;,&#39;Inter&#39;,system-ui,sans-serif" font-size="11" fill="#6B6B6B">over the wire</text>
+  </g>
+</svg>
