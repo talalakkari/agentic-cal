@@ -1,0 +1,23 @@
+# gitleaks config for the OSS CI tripwire. PUBLIC-SAFE: contains no literal
+# secrets. Extends the built-in ruleset (private keys, cloud tokens, JWTs, etc.)
+# and allowlists the intentional placeholders that live in this tree.
+title = "leakguard gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Intentional placeholders and noise in the OSS tree"
+regexes = [
+  '''example\.(com|org|net)''',
+  '''calendar@example\.com''',
+  '''you@example\.com''',
+  '''your-team\.cloudflareaccess\.com''',
+  '''your-access-policy-audience-tag''',
+  '''@users\.noreply\.github\.com''',
+  '''@cf/google/gemma''',
+]
+paths = [
+  '''package-lock\.json''',
+  '''(.*?)\.(png|jpe?g|gif|webp|ico|woff2?|ttf|otf|eot|pdf)$''',
+]

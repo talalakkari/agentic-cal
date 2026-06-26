@@ -1,0 +1,41 @@
+name: leakguard
+
+# Server-side leak tripwire. Backs up the local pre-commit / pre-push hooks:
+# catches anything pushed from a machine without hooks installed or via a
+# no-verify bypass. Runs the repo's own structural scanner plus gitleaks.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scanner:
+    name: leakguard structural scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # No .leakguard denylist exists in CI (it is git-ignored and never pushed),
+      # so this runs structural rules only. The local hooks add literal matching.
+      - name: Run leakguard (structural-only)
+        run: node scripts/leakguard.mjs --all
+
+  gitleaks:
+    name: gitleaks full-history scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install gitleaks
+        run: |
+          VERSION=8.21.2
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" | tar -xz -C /usr/local/bin gitleaks
+          gitleaks version
+      - name: Scan
+        run: gitleaks detect --source . --config .gitleaks.toml --redact --no-banner --verbose

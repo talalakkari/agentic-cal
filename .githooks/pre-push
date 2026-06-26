@@ -1,0 +1,20 @@
+#!/bin/sh
+# leakguard pre-push: final gate before anything leaves the machine.
+# Scans the ENTIRE tracked tree (not just the diff) so nothing slips through.
+# Fail-closed: if the scanner cannot run, block the push rather than risk a leak.
+set -e
+
+ROOT="$(git rev-parse --show-toplevel)"
+
+NODE_BIN="$(command -v node 2>/dev/null || true)"
+if [ -z "$NODE_BIN" ]; then
+  for c in /opt/homebrew/bin/node /usr/local/bin/node /usr/bin/node "$HOME/.nvm/current/bin/node" "$HOME/.volta/bin/node"; do
+    if [ -x "$c" ]; then NODE_BIN="$c"; break; fi
+  done
+fi
+if [ -z "$NODE_BIN" ]; then
+  echo "leakguard: node not found: refusing the push (fail-closed). Add node to PATH." >&2
+  exit 1
+fi
+
+exec "$NODE_BIN" "$ROOT/scripts/leakguard.mjs" --all

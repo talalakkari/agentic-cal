@@ -18,6 +18,8 @@ CHANGELOG.md
 # Program-coordinator hub channel (Channel F) + local agent context — never published
 prompts/
 CLAUDE.local.md
+# leakguard denylist: the only place real private literals live. NEVER publish.
+.leakguard/
 # All agent tooling stays local: commands, skills, and settings.local.json reference Channel F /
 # program context that must never enter this OSS-first repo. (Was a single stale
 # .claude/commands/check-inbox.md rule that left .claude/skills/* and settings.local.json exposed.)

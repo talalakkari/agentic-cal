@@ -1,0 +1,21 @@
+#!/bin/sh
+# leakguard pre-commit: scan STAGED changes before they enter a commit.
+# Fail-closed: if the scanner cannot run, block the commit rather than risk a leak.
+set -e
+
+ROOT="$(git rev-parse --show-toplevel)"
+
+# Locate node. GUI git clients (e.g. GitHub Desktop) often have a minimal PATH,
+# so fall back to common install locations before giving up.
+NODE_BIN="$(command -v node 2>/dev/null || true)"
+if [ -z "$NODE_BIN" ]; then
+  for c in /opt/homebrew/bin/node /usr/local/bin/node /usr/bin/node "$HOME/.nvm/current/bin/node" "$HOME/.volta/bin/node"; do
+    if [ -x "$c" ]; then NODE_BIN="$c"; break; fi
+  done
+fi
+if [ -z "$NODE_BIN" ]; then
+  echo "leakguard: node not found: refusing the commit (fail-closed). Add node to PATH." >&2
+  exit 1
+fi
+
+exec "$NODE_BIN" "$ROOT/scripts/leakguard.mjs" --staged

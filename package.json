@@ -30,6 +30,8 @@
 		"cf-typegen": "wrangler types",
 		"deploy": "npm run build && wrangler deploy",
 		"dev": "react-router dev",
+		"leakguard": "node scripts/leakguard.mjs --all",
+		"prepare": "node scripts/leakguard.mjs --install-hooks",
 		"preview": "npm run build && vite preview",
 		"typecheck": "npm run cf-typegen && react-router typegen && tsc -b"
 	},
