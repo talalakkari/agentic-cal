@@ -137,7 +137,12 @@ function FeedCard({
 	};
 
 	const handleDelete = async () => {
-		if (!window.confirm(`Remove the ${template.label} feed and its events?`)) return;
+		if (
+			!window.confirm(
+				`Remove the ${template.label} feed? This deletes its cached events and removes it from every time block (the blocks stay, but ${template.label}'s accept status is dropped). You can re-register a new link afterward.`,
+			)
+		)
+			return;
 		try {
 			await deleteFeed.mutateAsync(template.id);
 			setIcsUrl("");

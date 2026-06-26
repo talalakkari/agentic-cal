@@ -95,10 +95,26 @@ export class CalendarDO extends DurableObject<Env> {
 	}
 
 	async deleteFeed(id: FeedId): Promise<{ deleted: boolean }> {
+		// Force delete. Both events and block_attendees FK feeds(id), so a feed that
+		// still has either row would refuse to delete (the "Failed to remove feed"
+		// case: a feed can have 0 events but a block_attendees row per agent block).
+		// Drop the feed's events and its block_attendees rows, then the feed itself,
+		// then recompute every block that lost an attendee so its status reflects
+		// only the accounts that remain.
+		const affected = await this.db
+			.select({ uid: schema.blockAttendees.uid })
+			.from(schema.blockAttendees)
+			.where(eq(schema.blockAttendees.feed_id, id));
 		await this.db.delete(schema.events).where(eq(schema.events.feed_id, id));
+		await this.db
+			.delete(schema.blockAttendees)
+			.where(eq(schema.blockAttendees.feed_id, id));
 		const result = await this.db
 			.delete(schema.feeds)
 			.where(eq(schema.feeds.id, id));
+		for (const uid of new Set(affected.map((a) => a.uid))) {
+			await this.recomputeBlockStatus(uid);
+		}
 		return { deleted: (result as { rowsAffected?: number }).rowsAffected !== 0 };
 	}
 

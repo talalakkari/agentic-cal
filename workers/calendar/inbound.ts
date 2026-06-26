@@ -115,16 +115,27 @@ export async function handleCalendarInbound(
 			return "handled";
 		}
 
-		// Map the reply to a feed: prefer the configured invite address (clients
-		// sometimes reply from aliases; the ATTENDEE line is the fallback).
+		// Map the reply to a feed. The iTIP ATTENDEE address is authoritative: it
+		// echoes the exact invited address this REPLY answers (RFC 5546), so it
+		// distinguishes feeds even when one mail account fronts several addresses
+		// and sends every RSVP from a single envelope From. Match the ATTENDEE
+		// first; fall back to the From sender only when the reply carries no
+		// matching ATTENDEE. (From-first mis-attributed a Proton acceptance to the
+		// iCloud feed whenever Proton sent both accounts' replies from the iCloud
+		// address — 2026-06-25.)
 		const feeds = await stub.listFeeds();
 		const feed =
-			feeds.find((f) => f.invite_email.toLowerCase() === sender) ??
-			feeds.find(
-				(f) => f.invite_email.toLowerCase() === reply.attendeeEmail,
-			);
+			(reply.attendeeEmail
+				? feeds.find(
+						(f) => f.invite_email.toLowerCase() === reply.attendeeEmail,
+					)
+				: undefined) ??
+			feeds.find((f) => f.invite_email.toLowerCase() === sender);
+		console.log(
+			`Calendar REPLY match: uid=${reply.uid} from=${sender} attendee=${reply.attendeeEmail ?? "none"} -> feed=${feed?.id ?? "NONE"} partstat=${reply.partstat}`,
+		);
 		if (!feed) {
-			console.warn(`Calendar REPLY (uid ${reply.uid}) from ${sender}: no feed matches sender or attendee — archived only`);
+			console.warn(`Calendar REPLY (uid ${reply.uid}) from ${sender} attendee ${reply.attendeeEmail ?? "none"}: no feed matches — archived only`);
 			return "handled";
 		}
 
