@@ -6,12 +6,11 @@
 //   3. On failure: record last_error, keep stale data (stale > empty).
 
 import { expandIcs } from "./ics";
+import { WINDOW_PAST_MS, WINDOW_FUTURE_MS } from "./window";
 import type { CalendarDO, FeedRow } from "./calendarDO";
 import type { Env } from "../types";
 
-// Rolling expansion window: past 7 days -> future 90 days.
-const WINDOW_PAST_MS = 7 * 24 * 60 * 60 * 1000;
-const WINDOW_FUTURE_MS = 90 * 24 * 60 * 60 * 1000;
+// Rolling expansion window (shared single source of truth: workers/calendar/window.ts).
 
 interface FeedCacheEntry {
 	etag?: string;

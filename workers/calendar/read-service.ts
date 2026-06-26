@@ -18,6 +18,12 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { Hono } from "hono";
 import { getCalendarStub } from "./poller";
+import {
+	WINDOW_PAST_MS,
+	WINDOW_FUTURE_MS,
+	WINDOW_PAST_DAYS,
+	WINDOW_FUTURE_DAYS,
+} from "./window";
 import type { Env } from "../types";
 
 // Advisory default colors per known source so the PWA's calendar filter has
@@ -40,17 +46,21 @@ function colorFor(id: string): string {
 	return `hsl(${hue}, 65%, 55%)`;
 }
 
-// Retained data window (spec §5: rolling −7d … +90d, re-expanded each poll). A
-// request whose range can't overlap it gets a typed `range_outside_window`.
-const WINDOW_PAST_MS = 7 * 86_400_000;
-const WINDOW_FUTURE_MS = 90 * 86_400_000;
+// Retained data window: shared single source of truth (workers/calendar/window.ts;
+// spec §5, rolling ±365d re-expanded each poll), exposed to consumers via the
+// `window` field below. A request whose range can't overlap it gets a typed
+// `range_outside_window`.
 
 // Typed failure model (F-018 #5): stable HTTP status + machine-readable `code`,
 // so the PWA can map the useful cases to better UX than a generic failure.
 // Body is `{ error: { code, message } }`. Closed set of codes:
 //   invalid_request      400 — missing/unparseable `from`/`to`, or `to` <= `from`
 //   range_outside_window 422 — range falls entirely outside the retained window
-type ErrorCode = "invalid_request" | "range_outside_window";
+//   internal_error       500 — unexpected server error (handlers throw → onError)
+// (Feed staleness is NOT an error: it is surfaced in the success body's
+// feed_warnings array. Auth + rate-limiting are out of scope at this
+// binding-only surface.)
+type ErrorCode = "invalid_request" | "range_outside_window" | "internal_error";
 function errorBody(code: ErrorCode, message: string) {
 	return { error: { code, message } };
 }
@@ -74,6 +84,13 @@ type ViewItem = {
 };
 
 export const calendarReadApp = new Hono<{ Bindings: Env }>();
+
+// Any unexpected throw becomes a typed internal_error (500) with a `code`, so the
+// consumer never has to infer a server fault from a bare/HTML error (F-018).
+calendarReadApp.onError((err, c) => {
+	console.error("CalendarReadService error:", err);
+	return c.json(errorBody("internal_error", "internal error serving calendar data"), 500);
+});
 
 // Merged, normalized calendar view over [from, to): feed events + agent blocks +
 // staleness warnings. Optional `?calendars=` is a comma-separated allow-list of
@@ -100,7 +117,7 @@ calendarReadApp.get("/calendar/view", async (c) => {
 		return c.json(
 			errorBody(
 				"range_outside_window",
-				"requested range is outside the retained window (about −7 to +90 days)",
+				`requested range is outside the retained window (about ±${WINDOW_PAST_DAYS} days)`,
 			),
 			422,
 		);
@@ -118,7 +135,7 @@ calendarReadApp.get("/calendar/view", async (c) => {
 
 	const stub = getCalendarStub(c.env);
 	const [eventRows, blockRows, cals] = await Promise.all([
-		stub.listEvents({ fromMs, toMs, limit: 1000 }),
+		stub.listEvents({ fromMs, toMs, limit: 5000 }),
 		stub.listBlocksWithAttendees({ fromMs, toMs }),
 		stub.listCalendars(),
 	]);
@@ -181,6 +198,8 @@ calendarReadApp.get("/calendar/view", async (c) => {
 
 	return c.json({
 		range: { from: new Date(fromMs).toISOString(), to: new Date(toMs).toISOString() },
+		// Served-window policy, echoed so any response is self-describing (F-018).
+		window: { past_days: WINDOW_PAST_DAYS, future_days: WINDOW_FUTURE_DAYS },
 		events,
 		feed_warnings,
 	});
@@ -191,6 +210,8 @@ calendarReadApp.get("/calendar/view", async (c) => {
 calendarReadApp.get("/calendars", async (c) => {
 	const { calendars } = await getCalendarStub(c.env).listCalendars();
 	return c.json({
+		// Served-window policy so consumers read it instead of hard-coding (F-018).
+		window: { past_days: WINDOW_PAST_DAYS, future_days: WINDOW_FUTURE_DAYS },
 		calendars: calendars.map((cal) => ({
 			id: cal.id,
 			display_name: cal.label,
