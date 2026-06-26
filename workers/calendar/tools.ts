@@ -333,3 +333,43 @@ export async function toolListBlocks(
 		return { error: (e as Error).message };
 	}
 }
+
+/**
+ * delete_block: permanently remove a CANCELLED block's record (the agent-facing
+ * counterpart to the Time blocks page purge). Refuses unless the block is already
+ * cancelled (its workflow is terminated and providers were notified via
+ * METHOD:CANCEL), so a purge can never orphan a live workflow or a provider
+ * invite. To remove an active block, cancel_block it first, then delete_block.
+ */
+export async function toolDeleteBlock(
+	env: Env,
+	args: { uid: string },
+): Promise<Record<string, unknown>> {
+	try {
+		const deleted = await getCalendarStub(env).deleteBlock(args.uid);
+		if (!deleted) {
+			return {
+				error: `Block ${args.uid} not found or not cancelled. Cancel it first (cancel_block), then delete_block.`,
+			};
+		}
+		return { uid: args.uid, deleted: true };
+	} catch (e) {
+		return { error: (e as Error).message };
+	}
+}
+
+/**
+ * purge_cancelled_blocks: permanently delete every cancelled block's record in
+ * one shot (the bulk cleanup behind the Time blocks "Purge cancelled" button).
+ * Safe: only cancelled blocks are touched. Returns the count removed.
+ */
+export async function toolPurgeCancelledBlocks(
+	env: Env,
+): Promise<Record<string, unknown>> {
+	try {
+		const purged = await getCalendarStub(env).purgeCancelledBlocks();
+		return { purged };
+	} catch (e) {
+		return { error: (e as Error).message };
+	}
+}

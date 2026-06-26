@@ -36,6 +36,8 @@ import {
 	toolBlockTime,
 	toolGetBlockStatus,
 	toolCancelBlock,
+	toolDeleteBlock,
+	toolPurgeCancelledBlocks,
 	toolListBlocks,
 	toolListCalendars,
 } from "../calendar/tools";
@@ -372,6 +374,26 @@ function createEmailTools(env: Env, mailboxId: string) {
 			}),
 			execute: async ({ uid }: { uid: string }): Promise<unknown> => {
 				return toolCancelBlock(env, { uid });
+			},
+		}),
+
+		delete_block: defineTool({
+			description:
+				"Permanently delete a CANCELLED block's record (removes it from the Time blocks view). Refuses unless already cancelled, so cancel_block it first. Only use when the operator explicitly asks (stale/test block cleanup).",
+			parameters: z.object({
+				uid: z.string().describe("The block uid to delete (must be cancelled)"),
+			}),
+			execute: async ({ uid }: { uid: string }): Promise<unknown> => {
+				return toolDeleteBlock(env, { uid });
+			},
+		}),
+
+		purge_cancelled_blocks: defineTool({
+			description:
+				"Permanently delete EVERY cancelled block's record in one shot (bulk cleanup). Only cancelled blocks are removed; active ones are untouched. Returns the count purged. Only use when the operator explicitly asks.",
+			parameters: z.object({}),
+			execute: async (): Promise<unknown> => {
+				return toolPurgeCancelledBlocks(env);
 			},
 		}),
 

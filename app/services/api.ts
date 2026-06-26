@@ -244,6 +244,13 @@ const api = {
 		get<{ blocks: CalendarBlock[] }>("/api/v1/calendar/blocks"),
 	cancelCalendarBlock: (uid: string) =>
 		del<{ uid: string; status: string }>(`/api/v1/calendar/blocks/${uid}`),
+	// Hard-delete a cancelled block's record (?purge=1). The server refuses unless
+	// the block is already cancelled.
+	purgeCalendarBlock: (uid: string) =>
+		del<{ uid: string; deleted: boolean }>(`/api/v1/calendar/blocks/${uid}?purge=1`),
+	// Bulk: permanently remove every cancelled block.
+	purgeCancelledCalendarBlocks: () =>
+		post<{ purged: number }>("/api/v1/calendar/blocks/purge-cancelled"),
 };
 
 export default api;

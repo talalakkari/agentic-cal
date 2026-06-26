@@ -27,6 +27,8 @@ import {
 	toolBlockTime,
 	toolGetBlockStatus,
 	toolCancelBlock,
+	toolDeleteBlock,
+	toolPurgeCancelledBlocks,
 	toolListBlocks,
 	toolListCalendars,
 } from "../calendar/tools";
@@ -530,6 +532,30 @@ export class EmailMCP extends McpAgent<Env> {
 			},
 			async (args) => {
 				const result = await toolCancelBlock(env, args);
+				return mcpResult(result);
+			},
+		);
+
+		// ── delete_block ───────────────────────────────────────────
+		this.server.tool(
+			"delete_block",
+			"Permanently delete a CANCELLED block's record (removes it from the Time blocks view entirely). Refuses unless the block is already cancelled, so cancel_block it first. Use only on the operator's explicit request, for cleaning up stale or test blocks.",
+			{
+				uid: z.string().describe("The block uid to delete (must be cancelled)"),
+			},
+			async (args) => {
+				const result = await toolDeleteBlock(env, args);
+				return mcpResult(result);
+			},
+		);
+
+		// ── purge_cancelled_blocks ─────────────────────────────────
+		this.server.tool(
+			"purge_cancelled_blocks",
+			"Permanently delete EVERY cancelled block's record in one shot (bulk cleanup). Only cancelled blocks are removed; active ones are untouched. Returns the count purged. Use only on the operator's explicit request.",
+			{},
+			async () => {
+				const result = await toolPurgeCancelledBlocks(env);
 				return mcpResult(result);
 			},
 		);

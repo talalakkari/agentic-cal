@@ -492,6 +492,43 @@ export class CalendarDO extends DurableObject<Env> {
 			.where(and(eq(schema.blocks.uid, uid), sql`${schema.blocks.status} != 'cancelled'`));
 	}
 
+	/**
+	 * Hard-delete a block and its attendee rows. Guarded to CANCELLED blocks only:
+	 * by the time a block is cancelled its BlockTimeWorkflow is terminated and the
+	 * providers were notified via METHOD:CANCEL, so a purge can never orphan a live
+	 * workflow or a provider-side invite (deleting an active block would: its UID
+	 * would stop matching and the next poll would re-surface the provider copy as a
+	 * normal event). Returns false if the block is missing or not cancelled.
+	 */
+	async deleteBlock(uid: string): Promise<boolean> {
+		const [block] = await this.db
+			.select({ status: schema.blocks.status })
+			.from(schema.blocks)
+			.where(eq(schema.blocks.uid, uid));
+		if (!block || block.status !== "cancelled") return false;
+		// Child rows first (block_attendees references blocks(uid)).
+		await this.db.delete(schema.blockAttendees).where(eq(schema.blockAttendees.uid, uid));
+		await this.db.delete(schema.blocks).where(eq(schema.blocks.uid, uid));
+		return true;
+	}
+
+	/**
+	 * Bulk hard-delete of every cancelled block (+ its attendee rows). Returns the
+	 * number of blocks removed. Same cancelled-only safety as deleteBlock — the
+	 * one-time cleanup purge behind the /calendar Time blocks view.
+	 */
+	async purgeCancelledBlocks(): Promise<number> {
+		const rows = await this.db
+			.select({ uid: schema.blocks.uid })
+			.from(schema.blocks)
+			.where(eq(schema.blocks.status, "cancelled"));
+		if (rows.length === 0) return 0;
+		const uids = rows.map((r) => r.uid);
+		await this.db.delete(schema.blockAttendees).where(inArray(schema.blockAttendees.uid, uids));
+		await this.db.delete(schema.blocks).where(eq(schema.blocks.status, "cancelled"));
+		return rows.length;
+	}
+
 	// ── Availability (Phase 2) ─────────────────────────────────────
 
 	/**

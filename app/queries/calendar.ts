@@ -93,3 +93,25 @@ export function useCancelCalendarBlock() {
 		},
 	});
 }
+
+/** Permanently delete one cancelled block's record. */
+export function usePurgeCalendarBlock() {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: (uid: string) => api.purgeCalendarBlock(uid),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: queryKeys.calendar.blocks });
+		},
+	});
+}
+
+/** Bulk: permanently delete every cancelled block. */
+export function usePurgeCancelledBlocks() {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: () => api.purgeCancelledCalendarBlocks(),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: queryKeys.calendar.blocks });
+		},
+	});
+}

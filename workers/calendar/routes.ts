@@ -102,6 +102,23 @@ calendarApp.get("/blocks", async (c) => {
 });
 
 calendarApp.delete("/blocks/:uid", async (c) => {
-	const result = await toolCancelBlock(c.env, { uid: c.req.param("uid") });
+	const uid = c.req.param("uid");
+	// ?purge=1 hard-deletes a CANCELLED block's record (one-time cleanup). Without
+	// it, the default action cancels the block (METHOD:CANCEL, keeps the row).
+	if (c.req.query("purge")) {
+		const deleted = await getCalendarStub(c.env).deleteBlock(uid);
+		return c.json(
+			deleted ? { uid, deleted: true } : { error: "block not found or not cancelled" },
+			deleted ? 200 : 409,
+		);
+	}
+	const result = await toolCancelBlock(c.env, { uid });
 	return c.json(result, "error" in result ? 404 : 200);
+});
+
+// Bulk purge: permanently remove every cancelled block's record. Safe because
+// cancelled blocks have terminated workflows and already sent METHOD:CANCEL.
+calendarApp.post("/blocks/purge-cancelled", async (c) => {
+	const purged = await getCalendarStub(c.env).purgeCancelledBlocks();
+	return c.json({ purged });
 });
