@@ -125,6 +125,14 @@ calendarReadApp.get("/calendar/view", async (c) => {
 
 	const events: ViewItem[] = [];
 	for (const e of eventRows) {
+		// Dedupe by UID against agent blocks (spec §2.7/§3): an accepted block
+		// reappears in the polled feeds as an is_own_block event. The block branch
+		// below returns the canonical, richer `kind:"block"` item (status +
+		// attendees), so we drop the feed copy to avoid a double-render. This also
+		// makes a cancelled block fully vanish: its block row is already skipped
+		// (status === "cancelled" below) and its lingering feed copy is dropped
+		// here, so it disappears regardless of provider CANCEL propagation lag.
+		if (e.is_own_block === 1) continue;
 		if (allow && !allow.has(e.feed_id)) continue;
 		events.push({
 			uid: e.uid,
