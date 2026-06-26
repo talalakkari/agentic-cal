@@ -5,11 +5,16 @@
 // operator's rolling window, so there is no need for server-side paging.
 // Rendered inside the calendar layout (app/routes/calendar.tsx).
 
-import { Badge, Button, Loader, Select, useKumoToastManager } from "@cloudflare/kumo";
+import { Badge, Button, Dialog, Loader, Select, useKumoToastManager } from "@cloudflare/kumo";
 import { CaretLeftIcon, CaretRightIcon, TrashIcon } from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 import type { CalendarBlock } from "~/services/api";
-import { useCalendarBlocks, useCancelCalendarBlock } from "~/queries/calendar";
+import {
+	useCalendarBlocks,
+	useCancelCalendarBlock,
+	usePurgeCalendarBlock,
+	usePurgeCancelledBlocks,
+} from "~/queries/calendar";
 
 export function meta() {
 	return [{ title: "Time blocks" }];
@@ -82,12 +87,106 @@ function buildPageItems(current: number, total: number): Array<number | "ellipsi
 	return items;
 }
 
+// A destructive action awaiting confirmation in the styled dialog.
+type PendingAction =
+	| { kind: "cancel"; block: CalendarBlock }
+	| { kind: "purge"; block: CalendarBlock }
+	| { kind: "purgeAll" };
+
+function confirmContent(pending: PendingAction, cancelledCount: number) {
+	switch (pending.kind) {
+		case "cancel":
+			return {
+				title: "Cancel time block",
+				body: (
+					<>
+						Cancel{" "}
+						<span className="font-medium text-kumo-default">{pending.block.title}</span> on
+						every calendar? An update is emailed to each invited account.
+					</>
+				),
+				confirmLabel: "Cancel block",
+			};
+		case "purge":
+			return {
+				title: "Delete permanently",
+				body: (
+					<>
+						Permanently delete the record for{" "}
+						<span className="font-medium text-kumo-default">{pending.block.title}</span>? It
+						was already cancelled, so no further notice goes to your calendars. This cannot
+						be undone.
+					</>
+				),
+				confirmLabel: "Delete",
+			};
+		case "purgeAll":
+			return {
+				title: "Purge cancelled blocks",
+				body: (
+					<>
+						Permanently delete all{" "}
+						<span className="font-medium text-kumo-default">{cancelledCount}</span> cancelled
+						block{cancelledCount === 1 ? "" : "s"}? This removes their records entirely and
+						cannot be undone.
+					</>
+				),
+				confirmLabel: `Purge ${cancelledCount}`,
+			};
+	}
+}
+
+function ConfirmDialog({
+	pending,
+	cancelledCount,
+	busy,
+	onConfirm,
+	onClose,
+}: {
+	pending: PendingAction | null;
+	cancelledCount: number;
+	busy: boolean;
+	onConfirm: () => void;
+	onClose: () => void;
+}) {
+	const content = pending ? confirmContent(pending, cancelledCount) : null;
+	return (
+		<Dialog.Root open={!!pending} onOpenChange={(open) => !open && !busy && onClose()}>
+			<Dialog size="sm" className="p-6">
+				{content && (
+					<>
+						<Dialog.Title className="mb-2 text-base font-semibold text-kumo-default">
+							{content.title}
+						</Dialog.Title>
+						<p className="text-sm text-kumo-subtle">{content.body}</p>
+						<div className="mt-6 flex justify-end gap-2">
+							<Button variant="secondary" size="sm" disabled={busy} onClick={onClose}>
+								Keep
+							</Button>
+							<Button
+								variant="destructive"
+								size="sm"
+								loading={busy}
+								onClick={onConfirm}
+							>
+								{content.confirmLabel}
+							</Button>
+						</div>
+					</>
+				)}
+			</Dialog>
+		</Dialog.Root>
+	);
+}
+
 function BlockRow({
 	block,
 	onCancel,
+	onPurge,
 }: {
 	block: CalendarBlock;
 	onCancel: (block: CalendarBlock) => void;
+	onPurge: (block: CalendarBlock) => void;
 }) {
 	return (
 		<div className="flex flex-wrap items-center gap-3 border-t border-kumo-line px-5 py-3 first:border-t-0">
@@ -119,7 +218,16 @@ function BlockRow({
 					</span>
 				))}
 			</div>
-			{block.status !== "cancelled" && (
+			{block.status === "cancelled" ? (
+				<Button
+					variant="ghost"
+					size="sm"
+					shape="square"
+					icon={<TrashIcon size={16} />}
+					aria-label={`Delete block ${block.title} permanently`}
+					onClick={() => onPurge(block)}
+				/>
+			) : (
 				<Button
 					variant="ghost"
 					size="sm"
@@ -137,12 +245,21 @@ export default function CalendarBlocksRoute() {
 	const toastManager = useKumoToastManager();
 	const { data, isLoading } = useCalendarBlocks();
 	const cancelBlock = useCancelCalendarBlock();
+	const purgeBlock = usePurgeCalendarBlock();
+	const purgeCancelled = usePurgeCancelledBlocks();
 
 	const [statusFilter, setStatusFilter] = useState<StatusFilter>("active");
 	const [pageSize, setPageSize] = useState(10);
 	const [page, setPage] = useState(1);
+	const [pending, setPending] = useState<PendingAction | null>(null);
+	const actionBusy =
+		cancelBlock.isPending || purgeBlock.isPending || purgeCancelled.isPending;
 
 	const allBlocks = data?.blocks ?? [];
+	const cancelledCount = useMemo(
+		() => allBlocks.filter((b) => b.status === "cancelled").length,
+		[allBlocks],
+	);
 
 	// Filter by status, then sort newest-created-first.
 	const filtered = useMemo(
@@ -166,14 +283,29 @@ export default function CalendarBlocksRoute() {
 	const rangeStart = filtered.length === 0 ? 0 : startIdx + 1;
 	const rangeEnd = Math.min(startIdx + pageSize, filtered.length);
 
-	const handleCancel = async (block: CalendarBlock) => {
-		if (!window.confirm(`Cancel "${block.title}" on every calendar?`)) return;
+	// Execute whatever destructive action the dialog is confirming. On success the
+	// blocks query is invalidated (the row updates/disappears in place, no manual
+	// refresh) and a toast confirms what happened.
+	const runPending = async () => {
+		if (!pending) return;
 		try {
-			await cancelBlock.mutateAsync(block.uid);
-			toastManager.add({ title: "Cancellation sent to all calendars" });
+			if (pending.kind === "cancel") {
+				await cancelBlock.mutateAsync(pending.block.uid);
+				toastManager.add({ title: `Cancelled "${pending.block.title}"` });
+			} else if (pending.kind === "purge") {
+				await purgeBlock.mutateAsync(pending.block.uid);
+				toastManager.add({ title: `Deleted "${pending.block.title}"` });
+			} else {
+				const { purged } = await purgeCancelled.mutateAsync();
+				toastManager.add({
+					title: `Deleted ${purged} cancelled block${purged === 1 ? "" : "s"}`,
+				});
+				setPage(1);
+			}
+			setPending(null);
 		} catch (err) {
 			toastManager.add({
-				title: (err as Error).message || "Failed to cancel block",
+				title: (err as Error).message || "Action failed",
 				variant: "error",
 			});
 		}
@@ -184,7 +316,7 @@ export default function CalendarBlocksRoute() {
 			<div className="mb-1 text-lg font-semibold text-kumo-default">Time blocks</div>
 			<p className="mb-4 text-sm text-kumo-subtle">
 				Blocks created by the agent (block_time). Each goes out as an email invite to
-				every account — the glyphs show who has accepted.
+				every account, and the glyphs show who has accepted.
 			</p>
 
 			{/* Toolbar: status filter + rows per page */}
@@ -227,6 +359,17 @@ export default function CalendarBlocksRoute() {
 						))}
 					</Select>
 				</label>
+				{statusFilter === "cancelled" && cancelledCount > 0 && (
+					<div className="ml-auto">
+						<Button
+							variant="destructive"
+							size="sm"
+							onClick={() => setPending({ kind: "purgeAll" })}
+						>
+							Purge cancelled ({cancelledCount})
+						</Button>
+					</div>
+				)}
 			</div>
 
 			{isLoading ? (
@@ -245,7 +388,12 @@ export default function CalendarBlocksRoute() {
 				<>
 					<div className="overflow-hidden rounded-xl border border-kumo-line bg-kumo-base">
 						{pageBlocks.map((block) => (
-							<BlockRow key={block.uid} block={block} onCancel={handleCancel} />
+							<BlockRow
+								key={block.uid}
+								block={block}
+								onCancel={(b) => setPending({ kind: "cancel", block: b })}
+								onPurge={(b) => setPending({ kind: "purge", block: b })}
+							/>
 						))}
 					</div>
 
@@ -297,6 +445,14 @@ export default function CalendarBlocksRoute() {
 					</div>
 				</>
 			)}
+
+			<ConfirmDialog
+				pending={pending}
+				cancelledCount={cancelledCount}
+				busy={actionBusy}
+				onConfirm={runPending}
+				onClose={() => setPending(null)}
+			/>
 		</div>
 	);
 }
