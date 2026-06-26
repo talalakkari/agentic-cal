@@ -13,6 +13,7 @@ export default [
 	route("calendar", "routes/calendar.tsx", [
 		index("routes/calendar-view.tsx"),
 		route("feeds", "routes/calendar-feeds.tsx"),
+		route("blocks", "routes/calendar-blocks.tsx"),
 	]),
 	route("mailbox/:mailboxId", "routes/mailbox.tsx", [
 		index("routes/mailbox-index.tsx"),

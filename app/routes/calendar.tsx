@@ -1,7 +1,8 @@
 // Calendar layout — shared chrome for the calendar section: back-to-Mailboxes
-// link, title, and a Calendar | Feeds toggle. The index child (calendar-view.tsx)
-// is the month/week/day/list view; the `feeds` child (calendar-feeds.tsx) is feed
-// hookup + health + the agent time-blocks list. See app/routes.ts.
+// link, title, and a Calendar | Feeds | Time blocks toggle. The index child
+// (calendar-view.tsx) is the month/week/day/list view; `feeds` (calendar-feeds.tsx)
+// is feed hookup + health; `blocks` (calendar-blocks.tsx) is the agent time-blocks
+// list with status filter + pagination. See app/routes.ts.
 
 import { ArrowLeftIcon, CalendarBlankIcon } from "@phosphor-icons/react";
 import { Link as RouterLink, NavLink, Outlet } from "react-router";
@@ -34,6 +35,9 @@ export default function CalendarLayout() {
 							</NavLink>
 							<NavLink to="/calendar/feeds" className={({ isActive }) => seg(isActive)}>
 								Feeds
+							</NavLink>
+							<NavLink to="/calendar/blocks" className={({ isActive }) => seg(isActive)}>
+								Time blocks
 							</NavLink>
 						</nav>
 					</div>
