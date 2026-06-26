@@ -80,8 +80,10 @@ export class BlockTimeWorkflow extends WorkflowEntrypoint<Env, BlockTimeParams> 
 		// dispatch layer). Timeouts reject; replies resolve.
 		const firstRound = await Promise.allSettled(
 			feeds.map((feed) =>
+				// Event type is colon-free: a `:` makes sendEvent throw
+				// invalid_event_type (see inbound.ts notifyWorkflow). Keep in sync.
 				step.waitForEvent(`await-${feed.id}`, {
-					type: `reply:${feed.id}`,
+					type: `reply-${feed.id}`,
 					timeout: "24 hours",
 				}),
 			),
@@ -110,7 +112,7 @@ export class BlockTimeWorkflow extends WorkflowEntrypoint<Env, BlockTimeParams> 
 			await Promise.allSettled(
 				unanswered.map((feed) =>
 					step.waitForEvent(`await-${feed.id}-2`, {
-						type: `reply:${feed.id}`,
+						type: `reply-${feed.id}`,
 						timeout: "48 hours",
 					}),
 				),

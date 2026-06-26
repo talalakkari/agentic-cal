@@ -176,8 +176,12 @@ async function notifyWorkflow(
 ): Promise<void> {
 	try {
 		const instance = await env.BLOCK_WORKFLOW.get(workflowIdForUid(uid));
+		// Event type must be colon-free: Workflows' sendEvent rejects a `:` in the
+		// type with `invalid_event_type`, even when the workflow is actively
+		// waiting on it. Must match the hyphenated type the workflow registers in
+		// waitForEvent (`reply-<feed>`), not `reply:<feed>`.
 		await instance.sendEvent({
-			type: `reply:${feedId}`,
+			type: `reply-${feedId}`,
 			payload: { partstat },
 		});
 	} catch (e) {
