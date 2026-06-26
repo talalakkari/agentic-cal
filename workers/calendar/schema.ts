@@ -56,4 +56,9 @@ export const blockAttendees = sqliteTable("block_attendees", {
 		.references(() => feeds.id),
 	partstat: text("partstat").notNull().default("NEEDS-ACTION"), // ACCEPTED|DECLINED|TENTATIVE|NEEDS-ACTION
 	replied_at: integer("replied_at"),
+	// Highest SEQUENCE for which a REQUEST invite has been successfully sent to
+	// this attendee (NULL = never sent). The BlockTimeWorkflow's per-leg send
+	// guard reads/writes this so a Workflows replay never re-emits an invite that
+	// already went out: the idempotency belt to step memoization (spec §8 part b).
+	invite_sent_seq: integer("invite_sent_seq"),
 });

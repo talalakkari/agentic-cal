@@ -63,4 +63,12 @@ export const calendarMigrations: Migration[] = [
 		name: "2_add_block_last_error",
 		sql: `ALTER TABLE blocks ADD COLUMN last_error TEXT;`,
 	},
+	{
+		// Per-leg invite idempotency marker: the highest SEQUENCE for which a
+		// REQUEST invite has been sent to this attendee. The BlockTimeWorkflow's
+		// send legs consult it so a Workflows replay never re-emits an invite that
+		// already went out (spec §8 part b). NULL = never sent.
+		name: "3_add_block_attendee_invite_sent_seq",
+		sql: `ALTER TABLE block_attendees ADD COLUMN invite_sent_seq INTEGER;`,
+	},
 ];

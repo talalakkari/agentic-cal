@@ -393,6 +393,38 @@ export class CalendarDO extends DurableObject<Env> {
 	}
 
 	/**
+	 * Idempotency guard for the BlockTimeWorkflow send legs (spec §8 part b).
+	 * True once a REQUEST invite at >= `sequence` has been recorded sent to this
+	 * (uid, feed): lets a replayed send step skip re-emitting an invite that
+	 * already went out. NULL marker (never sent) -> false.
+	 */
+	async wasInviteSent(uid: string, feedId: FeedId, sequence: number): Promise<boolean> {
+		const [row] = await this.db
+			.select({ sent: schema.blockAttendees.invite_sent_seq })
+			.from(schema.blockAttendees)
+			.where(
+				and(
+					eq(schema.blockAttendees.uid, uid),
+					eq(schema.blockAttendees.feed_id, feedId),
+				),
+			);
+		return row?.sent != null && row.sent >= sequence;
+	}
+
+	/** Record that a REQUEST invite at `sequence` was sent to this (uid, feed). */
+	async markInviteSent(uid: string, feedId: FeedId, sequence: number): Promise<void> {
+		await this.db
+			.update(schema.blockAttendees)
+			.set({ invite_sent_seq: sequence })
+			.where(
+				and(
+					eq(schema.blockAttendees.uid, uid),
+					eq(schema.blockAttendees.feed_id, feedId),
+				),
+			);
+	}
+
+	/**
 	 * pending -> all NEEDS-ACTION outstanding; confirmed -> every attendee
 	 * accepted; partial -> mixed/declined (spec §11.7: no auto-cancel — the
 	 * agent sees per-account state and decides). Cancelled is terminal.

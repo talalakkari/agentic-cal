@@ -59,27 +59,54 @@ export class BlockTimeWorkflow extends WorkflowEntrypoint<Env, BlockTimeParams> 
 			return stub.listFeeds();
 		})) as FeedRow[];
 
-		for (const feed of feeds) {
-			await step.do(
-				`send-imip-${feed.id}`,
-				{ retries: { limit: 3, delay: "30 seconds", backoff: "exponential" } },
-				async () => {
-					await sendImip(this.env, feed, {
-						method: "REQUEST",
-						uid,
-						sequence: 0,
-						title,
-						dtstartMs: dtstart,
-						dtendMs: dtend,
-					});
-				},
+		// Send the REQUEST to every feed as an INDEPENDENT leg. allSettled (not a
+		// sequential await loop) so a leg that exhausts its retries can't abort the
+		// other legs or fail the whole run(), which would mislabel the block
+		// "invite failed" even when other feeds were invited, and on replay re-fire
+		// the succeeded legs (spec §8 known limitation, "B"). Each leg is also
+		// DB-guarded (wasInviteSent/markInviteSent) so a replay never re-emits an
+		// invite already sent: the idempotency belt to step memoization (part b).
+		const sendOutcomes = await Promise.allSettled(
+			feeds.map((feed) =>
+				step.do(
+					`send-imip-${feed.id}`,
+					{ retries: { limit: 3, delay: "30 seconds", backoff: "exponential" } },
+					async () => {
+						const stub = getCalendarStub(this.env);
+						if (await stub.wasInviteSent(uid, feed.id, 0)) return; // already sent (replay)
+						await sendImip(this.env, feed, {
+							method: "REQUEST",
+							uid,
+							sequence: 0,
+							title,
+							dtstartMs: dtstart,
+							dtendMs: dtend,
+						});
+						await stub.markInviteSent(uid, feed.id, 0);
+					},
+				),
+			),
+		);
+
+		const sentFeeds = feeds.filter((_, i) => sendOutcomes[i].status === "fulfilled");
+
+		// Only a TOTAL send failure (feeds existed but every leg failed -> no
+		// invites went out at all) throws: surfacing the existing "invite failed"
+		// badge via the outer run() catch -> recordBlockError, and letting Workflows
+		// retry the run to re-attempt the sends. A partial failure does NOT throw:
+		// the legs that sent proceed through the normal accept lifecycle below.
+		if (feeds.length > 0 && sentFeeds.length === 0) {
+			throw new Error(
+				`All ${feeds.length} invite send legs failed, no invites went out for block ${uid}`,
 			);
 		}
 
-		// Wait for each account's METHOD:REPLY (routed in by the email()
-		// dispatch layer). Timeouts reject; replies resolve.
+		// Wait only on feeds whose invite actually went out (routed in by the
+		// email() dispatch layer; timeouts reject, replies resolve). A failed-send
+		// feed never got an invite, so its attendee row stays NEEDS-ACTION and the
+		// block finalizes `partial`: the honest signal.
 		const firstRound = await Promise.allSettled(
-			feeds.map((feed) =>
+			sentFeeds.map((feed) =>
 				// Event type is colon-free: a `:` makes sendEvent throw
 				// invalid_event_type (see inbound.ts notifyWorkflow). Keep in sync.
 				step.waitForEvent(`await-${feed.id}`, {
@@ -89,26 +116,31 @@ export class BlockTimeWorkflow extends WorkflowEntrypoint<Env, BlockTimeParams> 
 			),
 		);
 
-		const unanswered = feeds.filter((_, i) => firstRound[i].status === "rejected");
+		const unanswered = sentFeeds.filter((_, i) => firstRound[i].status === "rejected");
 		if (unanswered.length > 0) {
-			// Nag = re-send the same invite (same UID/SEQUENCE — clients surface
-			// it again rather than duplicating), then wait once more.
-			for (const feed of unanswered) {
-				await step.do(
-					`send-nag-${feed.id}`,
-					{ retries: { limit: 3, delay: "30 seconds", backoff: "exponential" } },
-					async () => {
-						await sendImip(this.env, feed, {
-							method: "REQUEST",
-							uid,
-							sequence: 0,
-							title,
-							dtstartMs: dtstart,
-							dtendMs: dtend,
-						});
-					},
-				);
-			}
+			// Nag = re-send the same invite (same UID/SEQUENCE, clients surface it
+			// again rather than duplicating), then wait once more. allSettled so a
+			// failing nag leg can't fail the run(). NOT DB-guarded: the nag is an
+			// intentional same-sequence re-send (a reminder), distinct from the
+			// replay re-send the marker suppresses on the initial leg.
+			await Promise.allSettled(
+				unanswered.map((feed) =>
+					step.do(
+						`send-nag-${feed.id}`,
+						{ retries: { limit: 3, delay: "30 seconds", backoff: "exponential" } },
+						async () => {
+							await sendImip(this.env, feed, {
+								method: "REQUEST",
+								uid,
+								sequence: 0,
+								title,
+								dtstartMs: dtstart,
+								dtendMs: dtend,
+							});
+						},
+					),
+				),
+			);
 			await Promise.allSettled(
 				unanswered.map((feed) =>
 					step.waitForEvent(`await-${feed.id}-2`, {
