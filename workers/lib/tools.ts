@@ -119,10 +119,17 @@ export async function toolSearchEmails(
 	params: { query: string; folder?: string },
 ) {
 	const stub = getMailboxStub(env, mailboxId);
-	return (stub as unknown as MailboxSearchStub).searchEmails({
+	const results = (await (stub as unknown as MailboxSearchStub).searchEmails({
 		query: params.query,
 		folder: params.folder,
-	});
+	})) as Array<{ snippet?: string | null; [k: string]: unknown }>;
+	// F-04: fence the body-derived `snippet` of each result as untrusted data,
+	// matching get_email / get_thread (subject is left intact). Returns an object
+	// (not a bare array) so the self-describing `_security_note` rides along.
+	return {
+		_security_note: UNTRUSTED_CONTENT_NOTE,
+		results: results.map((r) => ({ ...r, snippet: fenceUntrusted(r.snippet) })),
+	};
 }
 
 // ── draft_reply ────────────────────────────────────────────────────
