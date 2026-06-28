@@ -13,6 +13,7 @@ import { createWorkersAI } from "workers-ai-provider";
 import { z } from "zod";
 import type { EmailFull, EmailMetadata } from "../lib/schemas";
 import { verifyDraft, isPromptInjection } from "../lib/ai";
+import { UNTRUSTED_CONTENT_NOTE } from "../lib/untrusted";
 import {
 	getMailboxStub,
 	stripHtmlToText,
@@ -125,19 +126,23 @@ When an inbound email asks about meeting times, availability, or proposes a meet
  * Falls back to DEFAULT_SYSTEM_PROMPT if none is configured.
  */
 async function getSystemPrompt(env: Env, mailboxId: string): Promise<string> {
+	let base = DEFAULT_SYSTEM_PROMPT;
 	try {
 		const key = `mailboxes/${mailboxId}.json`;
 		const obj = await env.BUCKET.get(key);
 		if (obj) {
 			const settings = await obj.json<Record<string, unknown>>();
 			if (typeof settings.agentSystemPrompt === "string" && settings.agentSystemPrompt.trim()) {
-				return settings.agentSystemPrompt;
+				base = settings.agentSystemPrompt;
 			}
 		}
 	} catch {
 		// Fall through to default
 	}
-	return DEFAULT_SYSTEM_PROMPT;
+	// F-04: always append the untrusted-content directive (even to a custom
+	// prompt) so the agent treats fenced email content from get_email /
+	// get_thread as data, never as instructions.
+	return `${base}\n\n## Security\n${UNTRUSTED_CONTENT_NOTE}`;
 }
 
 function createEmailTools(env: Env, mailboxId: string) {

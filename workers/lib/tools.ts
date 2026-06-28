@@ -29,6 +29,7 @@ import {
 import { verifyDraft } from "./ai";
 import { sendEmail } from "../email-sender";
 import { Folders } from "../../shared/folders";
+import { fenceUntrusted, UNTRUSTED_CONTENT_NOTE } from "./untrusted";
 import type { Env } from "../types";
 
 // ── Type casts for DO methods not on the base stub type ────────────
@@ -76,7 +77,16 @@ export async function toolGetEmail(
 	const stub = getMailboxStub(env, mailboxId);
 	const email = await getFullEmail(stub, emailId);
 	if (!email) return { error: "Email not found" };
-	return email;
+	// F-04: fence attacker-controlled body content as untrusted data before it
+	// reaches the model (agent chat tools or any MCP client). Subject/sender are
+	// left intact so reply composition ("Re: …", recipient) is unaffected.
+	return {
+		...email,
+		body: fenceUntrusted(email.body),
+		body_html: fenceUntrusted(email.body_html),
+		body_text: fenceUntrusted(email.body_text),
+		_security_note: UNTRUSTED_CONTENT_NOTE,
+	};
 }
 
 // ── get_thread ─────────────────────────────────────────────────────
@@ -87,7 +97,18 @@ export async function toolGetThread(
 	threadId: string,
 ) {
 	const stub = getMailboxStub(env, mailboxId);
-	return getFullThread(stub, threadId);
+	const thread = await getFullThread(stub, threadId);
+	// F-04: fence each message's body content as untrusted data (an injection
+	// can be planted in any earlier message in the thread).
+	return {
+		...thread,
+		_security_note: UNTRUSTED_CONTENT_NOTE,
+		messages: thread.messages.map((m) => ({
+			...m,
+			body: fenceUntrusted((m as { body?: string | null }).body),
+			body_text: fenceUntrusted(m.body_text),
+		})),
+	};
 }
 
 // ── search_emails ──────────────────────────────────────────────────
