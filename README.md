@@ -13,11 +13,11 @@ Forked from [cloudflare/agentic-inbox](https://github.com/cloudflare/agentic-inb
 ## What it does
 
 - **Full email client.** Send and receive via Cloudflare Email Routing; rich text composer, threading, folders, search, attachments. Each mailbox is an isolated Durable Object (SQLite) with R2 for attachments.
-- **Unified calendar (read).** Each provider publishes a read-only ICS feed (Proton "share via link", Outlook "publish calendar", iCloud "public calendar"). A cron poller normalizes all of them (RRULE expansion, EXDATE, RECURRENCE-ID overrides, timezones) into one availability model with per-feed staleness warnings.
+- **Unified calendar (read).** Each provider publishes a read-only ICS feed (Proton "share via link", Outlook "publish calendar", iCloud "public calendar"). A cron poller normalizes all of them (RRULE expansion, EXDATE, RECURRENCE-ID overrides, timezones) into one availability model (served ±12 months past and future) with per-feed staleness warnings.
 - **Calendar write path (iMIP).** `block_time` emails an RFC 5546/6047 invitation to each account; native clients render a normal meeting invite; acceptances route back into the same Worker and a Cloudflare Workflow tracks the lifecycle (send, wait, nag, finalize) per block.
-- **MCP server.** `/mcp` behind Cloudflare Access exposes **20 tools** (13 email + 7 calendar: `get_availability`, `find_free_slots`, `block_time`, `get_block_status`, `cancel_block`, `list_blocks`, `list_calendars`) for external agents such as Claude Code, Hermes, or anything speaking MCP, authenticated with an Access service token.
-- **Built-in AI agent.** Chat panel with a 16-tool surface (9 email + 7 calendar, overlapping but not identical to the 20 exposed over `/mcp`), powered by Workers AI (default `@cf/google/gemma-4-26b-a4b-it`, swappable via the `AGENT_MODEL` var) with all model traffic routed through **AI Gateway**. Auto-drafts replies to inbound email, and checks real availability before answering scheduling emails. Drafts always require explicit confirmation before sending.
-- **Calendar UI.** `/calendar` page for paste-the-link feed registration, feed health, and per-block acceptance state (✓ ✗ ~ …) with one-click cancel.
+- **MCP server.** `/mcp` behind Cloudflare Access exposes **22 tools** (13 email + 9 calendar: `get_availability`, `find_free_slots`, `block_time`, `get_block_status`, `cancel_block`, `delete_block`, `purge_cancelled_blocks`, `list_blocks`, `list_calendars`) for external agents such as Claude Code, Hermes, or anything speaking MCP, authenticated with an Access service token.
+- **Built-in AI agent.** Chat panel with an 18-tool surface (9 email + 9 calendar, overlapping but not identical to the 22 exposed over `/mcp`), powered by Workers AI (default `@cf/google/gemma-4-26b-a4b-it`, swappable via the `AGENT_MODEL` var) with all model traffic routed through **AI Gateway**. Auto-drafts replies to inbound email, and checks real availability before answering scheduling emails. Drafts always require explicit confirmation before sending.
+- **Calendar UI.** `/calendar` workspace with three tabs (Calendar, Feeds, Time blocks): a month/week/day view, paste-the-link feed registration and health, and a filterable time-blocks list showing per-block acceptance state (✓ ✗ ~ …) with one-click cancel and purge of cancelled blocks.
 
 ## How it works
 
@@ -62,7 +62,7 @@ The **Deploy to Cloudflare** button above provisions the Worker plus its resourc
 ```bash
 npm install
 npm run dev        # local dev (uses .dev.vars, see .dev.vars.example)
-npm run typecheck  # cf-typegen + tsc, run before every push
+npm run typecheck  # cf-typegen + react-router typegen + tsc -b, run before every push
 npx tsx scripts/smoke-ics.ts && npx tsx scripts/smoke-availability.ts && npx tsx scripts/smoke-imip.ts
 ```
 
@@ -82,7 +82,7 @@ Open **`/calendar`** (button on the Mailboxes page). One card per provider: past
 - The **invite email** per feed is where iMIP invitations are sent (usually the account's own address).
 - The cron repolls every 10 minutes; a failing feed keeps its last good data and surfaces the error on the card and in `feed_warnings`.
 
-API equivalents (behind Access): `GET/POST /api/v1/calendar/feeds`, `DELETE /api/v1/calendar/feeds/:id`, `POST /api/v1/calendar/poll`, `GET /api/v1/calendar/stats`, `GET /api/v1/calendar/events`, `GET /api/v1/calendar/blocks`, `DELETE /api/v1/calendar/blocks/:uid`.
+API equivalents (behind Access): `GET/POST /api/v1/calendar/feeds`, `DELETE /api/v1/calendar/feeds/:id`, `POST /api/v1/calendar/poll`, `GET /api/v1/calendar/stats`, `GET /api/v1/calendar/events`, `GET /api/v1/calendar/blocks`, `DELETE /api/v1/calendar/blocks/:uid` (`?purge=1` to delete as well as cancel), `POST /api/v1/calendar/blocks/purge-cancelled`.
 
 ## Connecting an agent over MCP
 
@@ -91,11 +91,13 @@ Endpoint:   https://<your-worker>/mcp
 Auth:       CF-Access-Client-Id / CF-Access-Client-Secret (Access service token)
 ```
 
-All 20 tools are self-describing over MCP (`list_tools` returns full schemas and usage guidance). Semantics worth knowing up front: `block_time` is **asynchronous**; it returns `pending` immediately (the slot counts as busy right away) and refuses with a conflict list unless `force` is set; acceptance per account is tracked by a Workflow and read via `get_block_status`. Tool responses include `feed_warnings` when a calendar feed is stale or erroring, so agents should hedge availability statements accordingly, and should never state availability without a same-turn tool call.
+All 22 tools are self-describing over MCP (`list_tools` returns full schemas and usage guidance). Semantics worth knowing up front: `block_time` is **asynchronous**; it returns `pending` immediately (the slot counts as busy right away) and refuses with a conflict list unless `force` is set; acceptance per account is tracked by a Workflow and read via `get_block_status`. Tool responses include `feed_warnings` when a calendar feed is stale or erroring, so agents should hedge availability statements accordingly, and should never state availability without a same-turn tool call.
 
 ## Trust model
 
-Any principal passing the shared Cloudflare Access policy can access **all** mailboxes and the calendar, including via `/mcp` (tools take a `mailboxId` parameter). There is no per-mailbox authorization; the Access policy is the single trust boundary. The same grant includes setting each mailbox's **agent system prompt** (Settings → it is fed verbatim to the model), so the Access boundary also governs what the agent is instructed to do. Keep this in mind before putting the app behind a multi-user Access policy.
+Any principal passing the shared Cloudflare Access policy can access **all** mailboxes and the calendar, including via `/mcp` (tools take a `mailboxId` parameter). There is no per-mailbox authorization; the Access policy is the single trust boundary. The same grant includes setting each mailbox's **agent system prompt** (Settings → it is fed verbatim to the model), so the Access boundary also governs what the agent is instructed to do. This is fine for a single operator. Before any multi-person use, put the app behind a properly-scoped team Access app: otherwise every principal reaches every mailbox and can rewrite the agent's instructions.
+
+**Untrusted email content is structurally isolated.** Email subjects and bodies are attacker-controlled, so when the read tools (`get_email`, `get_thread`, `search_emails`) hand message content to the agent or to an MCP client, that content is wrapped in nonce-keyed data fences and labelled untrusted, so the model treats it as data rather than instructions. The autonomous auto-draft path additionally runs an AI prompt-injection scanner and fails closed.
 
 ## Troubleshooting Access
 
