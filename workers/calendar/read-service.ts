@@ -72,8 +72,8 @@ type ViewItem = {
 	uid: string;
 	source: string; // feed id (proton|outlook|icloud) or "block"
 	kind: "event" | "block";
-	start: string; // ISO 8601 UTC
-	end: string;
+	start: number; // absolute epoch-ms instant (client renders in its own tz)
+	end: number;
 	all_day: boolean;
 	busy: boolean;
 	summary: string | null; // null for busy-only feeds (e.g. Outlook)
@@ -155,8 +155,8 @@ calendarReadApp.get("/calendar/view", async (c) => {
 			uid: e.uid,
 			source: e.feed_id,
 			kind: "event",
-			start: new Date(e.dtstart).toISOString(),
-			end: new Date(e.dtend).toISOString(),
+			start: e.dtstart, // epoch-ms; DO rows already store absolute instants
+			end: e.dtend,
 			all_day: e.all_day === 1,
 			busy: e.transparency === "OPAQUE",
 			summary: e.summary,
@@ -170,8 +170,8 @@ calendarReadApp.get("/calendar/view", async (c) => {
 			uid: b.uid,
 			source: "block",
 			kind: "block",
-			start: new Date(b.dtstart).toISOString(),
-			end: new Date(b.dtend).toISOString(),
+			start: b.dtstart, // epoch-ms; DO rows already store absolute instants
+			end: b.dtend,
 			all_day: false,
 			busy: ["pending", "partial", "confirmed"].includes(b.status),
 			summary: b.title,
@@ -184,7 +184,7 @@ calendarReadApp.get("/calendar/view", async (c) => {
 			})),
 		});
 	}
-	events.sort((a, b) => a.start.localeCompare(b.start));
+	events.sort((a, b) => a.start - b.start);
 
 	// feed_warnings reuses listCalendars' freshness rule (24h, Outlook 48h, or any
 	// last_error) so the PWA can caveat stale feeds the same way the agent does.
