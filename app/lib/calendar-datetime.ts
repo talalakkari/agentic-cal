@@ -63,6 +63,35 @@ export function tzDayKey(ms: number): string {
 	return `${p.year}-${String(p.month).padStart(2, "0")}-${String(p.day).padStart(2, "0")}`;
 }
 
+// ── All-day (VALUE=DATE) day-keying ────────────────────────────────────
+// All-day items are floating civil dates, parsed to midnight UTC. They must NOT
+// run through the CAL_TZ conversion: midnight-UTC July 5 is 5 PM July 4 in PT,
+// which would bucket an all-day event onto the previous day for every viewer.
+// Instead key them off their UTC calendar fields so July 5 stays July 5 for all.
+
+/** "YYYY-MM-DD" from an instant's UTC calendar fields (all-day day key). */
+export function utcDayKey(ms: number): string {
+	const d = new Date(ms);
+	return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
+/**
+ * Whether an all-day item spanning [startMs, endMs) covers the civil day `dayKey`.
+ * DTEND is EXCLUSIVE (DTEND;VALUE=DATE:20260713 → last visible day is Jul 12), so
+ * the range is half-open. A missing/degenerate DTEND (endKey <= startKey) is a
+ * single day. Lexicographic compare is valid for zero-padded "YYYY-MM-DD".
+ */
+export function allDayCoversDayKey(
+	startMs: number,
+	endMs: number,
+	dayKey: string,
+): boolean {
+	const startKey = utcDayKey(startMs);
+	const endKey = utcDayKey(endMs); // exclusive
+	if (endKey <= startKey) return dayKey === startKey;
+	return dayKey >= startKey && dayKey < endKey;
+}
+
 /** Minutes since local midnight in CAL_TZ (0-1439), for vertical grid positioning. */
 export function minutesInDay(ms: number): number {
 	const p = tzParts(ms);
@@ -76,6 +105,16 @@ export type CivilDate = Date;
 export function civilOf(ms: number): CivilDate {
 	const p = tzParts(ms);
 	return new Date(Date.UTC(p.year, p.month - 1, p.day, 12));
+}
+
+/**
+ * Civil-date carrier for an all-day instant, read from its UTC calendar fields
+ * (not CAL_TZ) so day headings/labels show the floating date rather than a
+ * tz-shifted one. Mirrors `civilOf` for all-day items; see `utcDayKey`.
+ */
+export function utcCivilOf(ms: number): CivilDate {
+	const d = new Date(ms);
+	return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 12));
 }
 
 export function civilKey(c: CivilDate): string {

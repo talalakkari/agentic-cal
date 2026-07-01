@@ -15,6 +15,7 @@ import {
 import {
 	type CivilDate,
 	addDays,
+	allDayCoversDayKey,
 	civilKey,
 	civilOf,
 	formatDayHeading,
@@ -32,6 +33,7 @@ import {
 	monthGridDays,
 	tzAbbrev,
 	tzDayKey,
+	utcCivilOf,
 	weekDays,
 } from "~/lib/calendar-datetime";
 
@@ -87,8 +89,24 @@ const seg = (active: boolean) =>
 		active ? "bg-kumo-fill text-kumo-default font-medium" : "text-kumo-subtle hover:text-kumo-default"
 	}`;
 
+// All-day items bucket by their UTC civil date and span [start, end) exclusive
+// (multi-day). Timed items bucket by their CAL_TZ start day, as before.
 function itemsForDay(items: CalItem[], dayKey: string): CalItem[] {
-	return items.filter((it) => tzDayKey(it.startMs) === dayKey);
+	return items.filter((it) =>
+		it.allDay
+			? allDayCoversDayKey(it.startMs, it.endMs, dayKey)
+			: tzDayKey(it.startMs) === dayKey,
+	);
+}
+
+// "All day" or, for a multi-day all-day span, "All day · Jul 5 – Jul 12" (DTEND
+// is exclusive, so the last visible day is end minus one day).
+function allDayLabel(item: CalItem): string {
+	const startCivil = utcCivilOf(item.startMs);
+	const lastMs = item.endMs - 24 * 3600_000;
+	const lastCivil = lastMs > item.startMs ? utcCivilOf(lastMs) : startCivil;
+	if (civilKey(lastCivil) === civilKey(startCivil)) return "All day";
+	return `All day · ${formatMonthDay(startCivil)} – ${formatMonthDay(lastCivil)}`;
 }
 
 export default function CalendarViewRoute() {
@@ -591,9 +609,9 @@ function DetailDialog({ item, onClose }: { item: CalItem | null; onClose: () => 
 							<span className="min-w-0 truncate">{item.title}</span>
 						</Dialog.Title>
 						<div className="space-y-1 text-sm text-kumo-subtle">
-							<div>{formatDayHeading(civilOf(item.startMs))}</div>
+							<div>{formatDayHeading(item.allDay ? utcCivilOf(item.startMs) : civilOf(item.startMs))}</div>
 							<div>
-								{item.allDay ? "All day" : `${formatTimeRange(item.startMs, item.endMs)} ${tzAbbrev(item.startMs)}`}
+								{item.allDay ? allDayLabel(item) : `${formatTimeRange(item.startMs, item.endMs)} ${tzAbbrev(item.startMs)}`}
 							</div>
 							<div className="capitalize">
 								{item.kind === "block" ? "Agent block" : `${item.source} calendar`}
