@@ -17,7 +17,7 @@ export { EmailAgent } from "./agent";
 export { EmailMCP } from "./mcp";
 export { CalendarDO } from "./calendar/calendarDO";
 export { BlockTimeWorkflow } from "./calendar/blockTimeWorkflow";
-// Binding-only read entrypoint for first-party consumers (e.g. the PWA's BFF).
+// Binding-only read entrypoint for first-party consumers (e.g. a backend-for-frontend Worker).
 // Distinct from the Access-gated default export; read-only + calendar-only.
 export { CalendarReadService } from "./calendar/read-service";
 

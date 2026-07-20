@@ -1,8 +1,8 @@
 // Binding-only calendar read surface — F-017 (2026-06-22).
 //
-// A first-party consumer (the PWA's BFF Worker) binds to this Worker with a
-// service binding scoped to the named entrypoint `CalendarReadService` and calls
-// it Worker-to-Worker: `env.<binding>.fetch(new Request("https://cal/calendar/view?from=…&to=…"))`.
+// A first-party consumer (e.g. a backend-for-frontend Worker) binds to this Worker
+// with a service binding scoped to the named entrypoint `CalendarReadService` and
+// calls it Worker-to-Worker: `env.<binding>.fetch(new Request("https://cal/calendar/view?from=…&to=…"))`.
 //
 // Trust model: service-binding calls do NOT pass through the default export's
 // Cloudflare Access middleware (workers/app.ts) — the binding itself (same
@@ -26,8 +26,8 @@ import {
 } from "./window";
 import type { Env } from "../types";
 
-// Advisory default colors per known source so the PWA's calendar filter has
-// stable hues out of the box; the PWA may override. Any unrecognized feed id
+// Advisory default colors per known source so a client's calendar filter has
+// stable hues out of the box; the client may override. Any unrecognized feed id
 // gets a deterministic fallback (below) so `color` is ALWAYS populated.
 const SOURCE_COLORS: Record<string, string> = {
 	proton: "#6d4aff",
@@ -37,7 +37,7 @@ const SOURCE_COLORS: Record<string, string> = {
 };
 
 // Deterministic per-id color so `/calendars` always returns a `color` (F-018 (a):
-// keeps the PWA's legend exact instead of falling back to its own palette).
+// keeps the client's legend exact instead of falling back to its own palette).
 function colorFor(id: string): string {
 	const known = SOURCE_COLORS[id];
 	if (known) return known;
@@ -52,7 +52,7 @@ function colorFor(id: string): string {
 // `range_outside_window`.
 
 // Typed failure model (F-018 #5): stable HTTP status + machine-readable `code`,
-// so the PWA can map the useful cases to better UX than a generic failure.
+// so the client can map the useful cases to better UX than a generic failure.
 // Body is `{ error: { code, message } }`. Closed set of codes:
 //   invalid_request      400 — missing/unparseable `from`/`to`, or `to` <= `from`
 //   range_outside_window 422 — range falls entirely outside the retained window
@@ -110,7 +110,7 @@ calendarReadApp.get("/calendar/view", async (c) => {
 		return c.json(errorBody("invalid_request", "to must be after from"), 400);
 	}
 	// No overlap with the retained window → nothing can ever be returned; signal it
-	// distinctly so the PWA can say "that range isn't available" rather than show
+	// distinctly so the client can say "that range isn't available" rather than show
 	// an empty calendar as if it were genuinely free.
 	const now = Date.now();
 	if (toMs <= now - WINDOW_PAST_MS || fromMs >= now + WINDOW_FUTURE_MS) {
@@ -187,7 +187,7 @@ calendarReadApp.get("/calendar/view", async (c) => {
 	events.sort((a, b) => a.start - b.start);
 
 	// feed_warnings reuses listCalendars' freshness rule (24h, Outlook 48h, or any
-	// last_error) so the PWA can caveat stale feeds the same way the agent does.
+	// last_error) so the client can caveat stale feeds the same way the agent does.
 	const feed_warnings = cals.calendars
 		.filter((cal) => !cal.fresh)
 		.map((cal) => ({
@@ -205,8 +205,8 @@ calendarReadApp.get("/calendar/view", async (c) => {
 	});
 });
 
-// Registered calendars for the PWA's filter. No secrets (ics_url/invite_email
-// omitted); carries ingest health so the PWA can flag stale/erroring feeds.
+// Registered calendars for a client's calendar filter. No secrets (ics_url/invite_email
+// omitted); carries ingest health so the client can flag stale/erroring feeds.
 calendarReadApp.get("/calendars", async (c) => {
 	const { calendars } = await getCalendarStub(c.env).listCalendars();
 	return c.json({
