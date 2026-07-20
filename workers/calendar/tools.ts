@@ -14,7 +14,16 @@ import { sendImip } from "./send-invite";
 import { ulid } from "./ulid";
 import type { Env } from "../types";
 
-const MAX_WINDOW_MS = 92 * 24 * 60 * 60 * 1000; // events only exist −7d/+90d
+// Largest span a single tool call may request. This is a RESPONSE-SIZE cap, not
+// the extent of the data: the retained window is ±365 days (workers/calendar/
+// window.ts, widened by F-018). The cap matters because CalendarDO.getAvailability
+// runs unbounded — no LIMIT — so a multi-year request would return every busy
+// interval in one payload, straight into an agent's context.
+//
+// Raising it therefore requires bounding getAvailability first; until then this
+// stays put. (The comment here previously read "events only exist −7d/+90d",
+// which stopped being true at F-018 and made the cap look like a data limit.)
+const MAX_WINDOW_MS = 92 * 24 * 60 * 60 * 1000;
 
 function parseIso(label: string, value: string): number {
 	const ms = Date.parse(value);
@@ -29,7 +38,9 @@ function parseWindow(windowStart: string, windowEnd: string) {
 	const endMs = parseIso("window_end", windowEnd);
 	if (endMs <= startMs) throw new Error("window_end must be after window_start");
 	if (endMs - startMs > MAX_WINDOW_MS) {
-		throw new Error("Window too large — events are only expanded ±90 days");
+		throw new Error(
+			"Window too large — a single request may span at most 92 days. Calendar data itself is retained for ±365 days, so query it in shorter ranges.",
+		);
 	}
 	return { startMs, endMs };
 }

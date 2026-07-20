@@ -316,7 +316,7 @@ function createEmailTools(env: Env, mailboxId: string) {
 
 		get_availability: defineTool({
 			description:
-				"Get busy intervals across ALL calendars (Proton/Outlook/iCloud + agent-created blocks) for a time window. Use when an email asks about scheduling or availability. feed_warnings lists stale/erroring calendar feeds — caveat answers accordingly.",
+				"Get busy intervals across ALL calendars (Proton/Outlook/iCloud + agent-created blocks) for a time window. Use when an email asks about scheduling or availability. feed_warnings lists stale/erroring calendar feeds — caveat answers accordingly. Returns only BUSY time; FREE/transparent events are excluded by design, so use list_calendar_events to describe what is on the calendar. One request may span at most 92 days.",
 			parameters: z.object({
 				window_start: z.string().describe("Window start, ISO 8601"),
 				window_end: z.string().describe("Window end, ISO 8601"),
@@ -453,7 +453,7 @@ function createEmailTools(env: Env, mailboxId: string) {
 
 		list_calendars: defineTool({
 			description:
-				"List the registered calendar feeds and their ingest health (label, detail level, event count in the ±90-day window, last fetched/changed, staleness, freshness, and any error). Read-only. Use when asked which calendars you can see or whether they're current — do NOT infer connectivity from an empty get_availability result.",
+				"List the registered calendar feeds and their ingest health (label, detail level, event count in the retained ±365-day window, last fetched/changed, staleness, freshness, and any error). Read-only. Use when asked which calendars you can see or whether they're current — do NOT infer connectivity from an empty get_availability result.",
 			parameters: z.object({}),
 			execute: async (): Promise<unknown> => {
 				return toolListCalendars(env);

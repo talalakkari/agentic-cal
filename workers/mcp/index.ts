@@ -450,7 +450,7 @@ export class EmailMCP extends McpAgent<Env> {
 		// ── get_availability ───────────────────────────────────────
 		this.server.tool(
 			"get_availability",
-			"Get busy intervals across all calendars (Proton/Outlook/iCloud feeds plus agent-created blocks) for a time window. feed_warnings lists feeds whose data is stale or erroring — caveat answers accordingly. Events only exist within -7/+90 days of now.",
+			"Get busy intervals across all calendars (Proton/Outlook/iCloud feeds plus agent-created blocks) for a time window. feed_warnings lists feeds whose data is stale or erroring — caveat answers accordingly. Returns only BUSY time: FREE/transparent events are excluded by design, so use list_calendar_events when the question is what is on the calendar rather than when it is blocked. Calendar data is retained for ±365 days, but one request may span at most 92 days.",
 			{
 				window_start: z
 					.string()
@@ -603,7 +603,7 @@ export class EmailMCP extends McpAgent<Env> {
 		// ── list_calendars ─────────────────────────────────────────
 		this.server.tool(
 			"list_calendars",
-			"List the registered calendar feeds and their ingest health: id, label, detail_level (busy|full), event_count (events currently in the -7/+90 day window), last_fetched/last_changed (ISO 8601 or null), stale_hours (-1 = never fetched), fresh (recently fetched AND no error), and last_error. Read-only. Use this when asked which calendars you can see or whether they are current/connected — do NOT infer calendar connectivity from an empty get_availability result (a connected calendar can simply have no events in the queried window).",
+			"List the registered calendar feeds and their ingest health: id, label, detail_level (busy|full), event_count (events currently in the retained ±365 day window), last_fetched/last_changed (ISO 8601 or null), stale_hours (-1 = never fetched), fresh (recently fetched AND no error), and last_error. Read-only. Use this when asked which calendars you can see or whether they are current/connected — do NOT infer calendar connectivity from an empty get_availability result (a connected calendar can simply have no events in the queried window).",
 			{},
 			async () => {
 				const result = await toolListCalendars(env);
