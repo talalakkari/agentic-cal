@@ -31,6 +31,7 @@ import {
 	toolPurgeCancelledBlocks,
 	toolListBlocks,
 	toolListCalendars,
+	toolListCalendarEvents,
 } from "../calendar/tools";
 import type { Env } from "../types";
 
@@ -571,6 +572,30 @@ export class EmailMCP extends McpAgent<Env> {
 			},
 			async (args) => {
 				const result = await toolListBlocks(env, args);
+				return mcpResult(result);
+			},
+		);
+
+		// ── list_calendar_events ───────────────────────────────────
+		this.server.tool(
+			"list_calendar_events",
+			"List the actual events on the calendars in a window — each with uid, feed_id, start/end (ISO 8601), all_day, busy, and summary. Read-only. Use this for \"what's on my calendar?\", \"what do I have Thursday?\", or any question about what the events ARE. Prefer get_availability instead when the question is only about free/busy time, and find_free_slots when you need bookable gaps. This tool is the only one that shows FREE/transparent events (all-day markers, OOO, holidays): get_availability filters those out by design, so an event can be absent there and still be on the calendar. summary is null on busy-only feeds (feed policy, not a missing title). is_own_block marks a feed's copy of a block the agent created. truncated:true means the limit was hit and more events exist.",
+			{
+				window_start: z
+					.string()
+					.describe("Window start, ISO 8601 (e.g. 2026-06-15T00:00:00-07:00)"),
+				window_end: z.string().describe("Window end, ISO 8601"),
+				feed_id: z
+					.string()
+					.optional()
+					.describe("Restrict to one calendar feed id (see list_calendars); omit for all"),
+				limit: z
+					.number()
+					.optional()
+					.describe("Max events to return (default 200, capped at 1000)"),
+			},
+			async (args) => {
+				const result = await toolListCalendarEvents(env, args);
 				return mcpResult(result);
 			},
 		);

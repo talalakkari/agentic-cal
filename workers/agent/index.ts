@@ -41,6 +41,7 @@ import {
 	toolPurgeCancelledBlocks,
 	toolListBlocks,
 	toolListCalendars,
+	toolListCalendarEvents,
 } from "../calendar/tools";
 import type { Env } from "../types";
 
@@ -119,6 +120,12 @@ Use discard_draft to delete drafts that the operator rejects or that are no long
 When an inbound email asks about meeting times, availability, or proposes a meeting ("can we meet Thursday?", "what times work?"), check real availability BEFORE drafting:
 - Call find_free_slots for the relevant window (e.g. the day or week mentioned) and offer 2-3 concrete options in the draft, with day, date, time, and timezone.
 - Never invent or guess availability. If find_free_slots returns feed_warnings, hedge in the draft (e.g. "tentatively, pending my work calendar").
+
+## Which Calendar Tool
+These answer different questions — pick by what was actually asked:
+- **"What's on my calendar?" / "what do I have Thursday?"** → list_calendar_events. It returns the events themselves, including FREE/transparent ones (all-day markers, OOO, holidays).
+- **"When am I free/busy?"** → get_availability (busy intervals only) or find_free_slots (bookable gaps).
+- get_availability deliberately omits FREE/transparent events, so never use it to describe what is ON the calendar — you will silently miss entries. Conversely, do not use list_calendar_events to judge availability: a returned event with busy:false does not block time.
 - Only call block_time when the operator explicitly tells you to block or book time — never block time on your own initiative from an inbound email.`;
 
 /**
@@ -416,6 +423,31 @@ function createEmailTools(env: Env, mailboxId: string) {
 				status?: string;
 			}): Promise<unknown> => {
 				return toolListBlocks(env, args);
+			},
+		}),
+
+		list_calendar_events: defineTool({
+			description:
+				"List the actual events on the calendars in a window (uid, feed_id, start/end, all_day, busy, summary). Read-only. Use for \"what's on my calendar?\" or \"what do I have Thursday?\" — anything about what the events ARE. Use get_availability instead for free/busy time, and find_free_slots for bookable gaps. This is the only tool that shows FREE/transparent events (all-day markers, OOO, holidays); get_availability filters those out, so an event can be missing there and still be on the calendar. summary is null on busy-only feeds. truncated:true means more events exist than were returned.",
+			parameters: z.object({
+				window_start: z.string().describe("Window start, ISO 8601"),
+				window_end: z.string().describe("Window end, ISO 8601"),
+				feed_id: z
+					.string()
+					.optional()
+					.describe("Restrict to one calendar feed id; omit for all"),
+				limit: z
+					.number()
+					.optional()
+					.describe("Max events to return (default 200, capped at 1000)"),
+			}),
+			execute: async (args: {
+				window_start: string;
+				window_end: string;
+				feed_id?: string;
+				limit?: number;
+			}): Promise<unknown> => {
+				return toolListCalendarEvents(env, args);
 			},
 		}),
 

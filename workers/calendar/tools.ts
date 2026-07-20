@@ -102,6 +102,88 @@ export async function toolFindFreeSlots(
 }
 
 /**
+ * list_calendar_events — the concrete events in a window, as opposed to the
+ * busy *intervals* get_availability returns.
+ *
+ * These are deliberately not the same question. get_availability answers "when
+ * am I unavailable?", so at the DO level it filters to `transparency = OPAQUE`
+ * and drops own-block copies, and it merges what remains into anonymous
+ * intervals. That makes it structurally unable to answer "what is on my
+ * calendar?": a FREE/TRANSPARENT event (all-day markers, "OOO", holidays,
+ * tentative holds) is on the calendar but never appears in a busy list.
+ *
+ * So this reads the events table directly and keeps everything, carrying `busy`
+ * per event rather than using it as a filter. Own-block copies — the feed's
+ * echo of a block the agent created — are included, because they genuinely are
+ * on the calendar; `is_own_block` is set on those so a caller that also holds
+ * list_blocks output can reconcile the two instead of double-reporting.
+ *
+ * `summary` is null for busy-only feeds (e.g. Outlook at detail_level=busy);
+ * that is a feed policy, not a missing title.
+ */
+export async function toolListCalendarEvents(
+	env: Env,
+	args: {
+		window_start: string;
+		window_end: string;
+		feed_id?: string;
+		limit?: number;
+	},
+): Promise<Record<string, unknown>> {
+	try {
+		const { startMs, endMs } = parseWindow(args.window_start, args.window_end);
+		if (args.limit !== undefined && (!Number.isFinite(args.limit) || args.limit <= 0)) {
+			throw new Error("limit must be a positive number");
+		}
+		const limit = args.limit ?? 200;
+
+		const stub = getCalendarStub(env);
+		// feed_id is pushed into the query rather than filtered after the fact, so
+		// it interacts correctly with `limit` (filtering post-limit would silently
+		// return fewer rows than the caller asked for).
+		const [rows, { calendars }] = await Promise.all([
+			stub.listEvents({
+				fromMs: startMs,
+				toMs: endMs,
+				limit,
+				...(args.feed_id ? { feedId: args.feed_id } : {}),
+			}),
+			stub.listCalendars(),
+		]);
+
+		return {
+			events: rows.map((e) => ({
+				uid: e.uid,
+				feed_id: e.feed_id,
+				start: iso(e.dtstart),
+				end: iso(e.dtend),
+				all_day: e.all_day === 1,
+				busy: e.transparency === "OPAQUE",
+				summary: e.summary,
+				...(e.is_own_block === 1 ? { is_own_block: true } : {}),
+			})),
+			// The DO clamps `limit` to 1000. Saying so beats letting a caller read a
+			// truncated list as a complete one.
+			...(rows.length >= limit
+				? {
+						truncated: true,
+						note: `Stopped at the ${limit}-event limit — there may be more events in this window. Narrow the window or raise limit.`,
+					}
+				: {}),
+			feed_warnings: calendars
+				.filter((c) => !c.fresh)
+				.map((c) => ({
+					feed_id: c.id,
+					stale_hours: c.stale_hours,
+					last_error: c.last_error,
+				})),
+		};
+	} catch (e) {
+		return { error: (e as Error).message };
+	}
+}
+
+/**
  * list_calendars — read-only feed registry + ingest health (spec §9.2). Lets
  * the agent answer "what calendars can you see / are they fresh?" directly,
  * rather than inferring connectivity from an empty get_availability result.
