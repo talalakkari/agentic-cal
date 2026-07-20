@@ -308,7 +308,7 @@ function AgentChatConnected({
 	const { startCompose } = useUIStore();
 
 	const agent = useAgent({ agent: "EmailAgent", name: mailboxId });
-	const { messages, sendMessage, status, setMessages, stop } =
+	const { messages, sendMessage, status, clearHistory, stop } =
 		useAgentChat({ agent });
 	const isStreaming = status === "streaming" || status === "submitted";
 
@@ -362,8 +362,13 @@ function AgentChatConnected({
 								size="sm"
 								icon={<TrashIcon size={14} />}
 								onClick={() => {
+									// clearHistory(), not setMessages([]): the latter only
+									// upserts the (empty) list server-side and deletes no
+									// rows, so durable history survives and reappears on
+									// reload. clearHistory sends CF_AGENT_CHAT_CLEAR, which
+									// actually drops the agent's message table.
 									if (window.confirm("Clear chat history?")) {
-										setMessages([]);
+										clearHistory();
 									}
 								}}
 								aria-label="Clear chat"
