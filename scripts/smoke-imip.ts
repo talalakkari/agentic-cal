@@ -58,6 +58,34 @@ assert(
 	unfolded.includes("SUMMARY:Deep work\\; FISPM proposal\\, drafting"),
 	"folded SUMMARY unfolds intact",
 );
+assert(!ics.includes("DESCRIPTION:"), "DESCRIPTION omitted when not provided");
+
+// Optional description → ICS DESCRIPTION; SUMMARY stays title-only
+const withDesc = buildIcs({
+	method: "REQUEST",
+	uid: "01J9ZK7M3QX@calendar.example.com",
+	sequence: 0,
+	dtstartMs: Date.parse("2026-06-18T21:00:00Z"),
+	dtendMs: Date.parse("2026-06-18T23:00:00Z"),
+	summary: "Deep work",
+	description: "Agenda: review FISPM draft; decide owners, next steps",
+	organizerAddr: "calendar@example.com",
+	organizerName: "T9 Calendar",
+	attendeeEmail: "me@proton.example",
+	attendeeName: "Personal",
+});
+assert(withDesc.includes("SUMMARY:Deep work"), "SUMMARY stays title-only when description set");
+assert(
+	withDesc.includes("DESCRIPTION:Agenda: review FISPM draft\\; decide owners\\, next steps"),
+	"DESCRIPTION present and TEXT-escaped when provided",
+);
+const withDescOverlong = withDesc
+	.split("\r\n")
+	.filter((line) => encoder.encode(line).length > 75);
+assert(
+	withDescOverlong.length === 0,
+	`DESCRIPTION path still folds to <=75 octets (got ${withDescOverlong.length} overlong)`,
+);
 
 const cancel = buildIcs({
 	method: "CANCEL",
@@ -77,6 +105,7 @@ assert(
 		cancel.includes("SEQUENCE:1"),
 	"CANCEL carries STATUS:CANCELLED + bumped SEQUENCE",
 );
+assert(!cancel.includes("DESCRIPTION:"), "CANCEL without description omits DESCRIPTION");
 
 // ── parseImip on a typical client REPLY ──
 const replyIcs = [

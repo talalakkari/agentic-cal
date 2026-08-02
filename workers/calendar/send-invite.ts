@@ -24,6 +24,8 @@ export interface InviteParams {
 	uid: string;
 	sequence: number;
 	title: string;
+	/** Optional agenda/notes → ICS DESCRIPTION + invite body. */
+	description?: string;
 	dtstartMs: number;
 	dtendMs: number;
 }
@@ -53,6 +55,7 @@ export async function sendImip(
 		dtstartMs: params.dtstartMs,
 		dtendMs: params.dtendMs,
 		summary: params.title,
+		...(params.description ? { description: params.description } : {}),
 		organizerAddr: env.ORGANIZER_ADDR,
 		organizerName: ORGANIZER_NAME,
 		attendeeEmail: feed.invite_email,
@@ -61,9 +64,16 @@ export async function sendImip(
 
 	const isCancel = params.method === "CANCEL";
 	const subject = isCancel ? `Cancelled: ${params.title}` : params.title;
+	const when = formatWhen(params.dtstartMs, params.dtendMs);
 	const textBody = isCancel
-		? `${params.title} (${formatWhen(params.dtstartMs, params.dtendMs)}) has been cancelled.`
-		: `${params.title}\n${formatWhen(params.dtstartMs, params.dtendMs)}\n\nThis time block was created by the T9 calendar agent. Accept to add it to this calendar.`;
+		? `${params.title} (${when}) has been cancelled.`
+		: [
+				params.title,
+				when,
+				...(params.description ? ["", params.description] : []),
+				"",
+				"This time block was created by the T9 calendar agent. Accept to add it to this calendar.",
+			].join("\n");
 
 	const msg = createMimeMessage();
 	msg.setSender({ name: ORGANIZER_NAME, addr: env.ORGANIZER_ADDR });

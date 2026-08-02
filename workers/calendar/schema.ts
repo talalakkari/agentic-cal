@@ -34,6 +34,8 @@ export const events = sqliteTable("events", {
 export const blocks = sqliteTable("blocks", {
 	uid: text("uid").primaryKey(), // '<ulid>@calendar.<domain>'
 	title: text("title").notNull(),
+	// Optional agenda/notes; emitted as ICS DESCRIPTION + invite body when set.
+	description: text("description"),
 	dtstart: integer("dtstart").notNull(),
 	dtend: integer("dtend").notNull(),
 	sequence: integer("sequence").notNull().default(0),

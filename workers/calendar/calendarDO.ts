@@ -206,6 +206,7 @@ export class CalendarDO extends DurableObject<Env> {
 	async createBlock(input: {
 		uid: string;
 		title: string;
+		description?: string | null;
 		dtstart: number;
 		dtend: number;
 		workflow_id?: string;
@@ -215,10 +216,11 @@ export class CalendarDO extends DurableObject<Env> {
 		const sqlStorage = this.ctx.storage.sql;
 		this.ctx.storage.transactionSync(() => {
 			sqlStorage.exec(
-				`INSERT INTO blocks (uid, title, dtstart, dtend, sequence, status, workflow_id, created_by, created_at)
-				 VALUES (?, ?, ?, ?, 0, 'pending', ?, ?, ?)`,
+				`INSERT INTO blocks (uid, title, description, dtstart, dtend, sequence, status, workflow_id, created_by, created_at)
+				 VALUES (?, ?, ?, ?, ?, 0, 'pending', ?, ?, ?)`,
 				input.uid,
 				input.title,
+				input.description ?? null,
 				input.dtstart,
 				input.dtend,
 				input.workflow_id ?? null,
@@ -245,6 +247,7 @@ export class CalendarDO extends DurableObject<Env> {
 	async createBlockIfFree(input: {
 		uid: string;
 		title: string;
+		description?: string | null;
 		dtstart: number;
 		dtend: number;
 		force?: boolean;
@@ -263,6 +266,7 @@ export class CalendarDO extends DurableObject<Env> {
 			await this.createBlock({
 				uid: input.uid,
 				title: input.title,
+				description: input.description,
 				dtstart: input.dtstart,
 				dtend: input.dtend,
 				created_by: input.created_by,
@@ -274,6 +278,7 @@ export class CalendarDO extends DurableObject<Env> {
 	async getBlock(uid: string): Promise<{
 		uid: string;
 		title: string;
+		description: string | null;
 		dtstart: number;
 		dtend: number;
 		sequence: number;
@@ -293,6 +298,7 @@ export class CalendarDO extends DurableObject<Env> {
 		return {
 			uid: block.uid,
 			title: block.title,
+			description: block.description ?? null,
 			dtstart: block.dtstart,
 			dtend: block.dtend,
 			sequence: block.sequence,

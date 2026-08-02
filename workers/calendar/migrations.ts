@@ -71,4 +71,9 @@ export const calendarMigrations: Migration[] = [
 		name: "3_add_block_attendee_invite_sent_seq",
 		sql: `ALTER TABLE block_attendees ADD COLUMN invite_sent_seq INTEGER;`,
 	},
+	{
+		// Optional agenda/notes on a block → ICS DESCRIPTION + invite body.
+		name: "4_add_block_description",
+		sql: `ALTER TABLE blocks ADD COLUMN description TEXT;`,
+	},
 ];

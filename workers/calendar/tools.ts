@@ -235,6 +235,7 @@ function organizerDomain(env: Env): string {
 function blockToJson(block: {
 	uid: string;
 	title: string;
+	description?: string | null;
 	dtstart: number;
 	dtend: number;
 	sequence?: number;
@@ -245,6 +246,7 @@ function blockToJson(block: {
 	return {
 		uid: block.uid,
 		title: block.title,
+		...(block.description ? { description: block.description } : {}),
 		start: iso(block.dtstart),
 		end: iso(block.dtend),
 		status: block.status,
@@ -270,13 +272,15 @@ function blockToJson(block: {
  */
 export async function toolBlockTime(
 	env: Env,
-	args: { start: string; end: string; title: string; force?: boolean },
+	args: { start: string; end: string; title: string; description?: string; force?: boolean },
 ): Promise<Record<string, unknown>> {
 	try {
 		const startMs = parseIso("start", args.start);
 		const endMs = parseIso("end", args.end);
 		if (endMs <= startMs) throw new Error("end must be after start");
 		if (!args.title?.trim()) throw new Error("title is required");
+		const title = args.title.trim();
+		const description = args.description?.trim() || undefined;
 
 		const stub = getCalendarStub(env);
 		const feeds = await stub.listFeeds();
@@ -289,7 +293,8 @@ export async function toolBlockTime(
 		// concurrent block_time calls can't both book the same slot.
 		const { created, conflicts } = await stub.createBlockIfFree({
 			uid,
-			title: args.title.trim(),
+			title,
+			description: description ?? null,
 			dtstart: startMs,
 			dtend: endMs,
 			force: args.force,
@@ -315,7 +320,13 @@ export async function toolBlockTime(
 		try {
 			instance = await env.BLOCK_WORKFLOW.create({
 				id: workflowIdForUid(uid),
-				params: { uid, title: args.title.trim(), dtstart: startMs, dtend: endMs },
+				params: {
+					uid,
+					title,
+					...(description ? { description } : {}),
+					dtstart: startMs,
+					dtend: endMs,
+				},
 			});
 		} catch (e) {
 			const message = `Invite workflow failed to start: ${(e as Error).message}`;
@@ -393,6 +404,7 @@ export async function toolCancelBlock(
 					uid: args.uid,
 					sequence,
 					title: block.title,
+					...(block.description ? { description: block.description } : {}),
 					dtstartMs: block.dtstart,
 					dtendMs: block.dtend,
 				});

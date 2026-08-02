@@ -18,6 +18,8 @@ export interface IcsEventInput {
 	dtstartMs: number;
 	dtendMs: number;
 	summary: string;
+	/** Optional ICS DESCRIPTION (agenda / notes). Omitted when absent. */
+	description?: string;
 	organizerAddr: string;
 	organizerName: string;
 	attendeeEmail: string;
@@ -83,6 +85,9 @@ export function buildIcs(input: IcsEventInput): string {
 		`DTSTART:${icsUtc(input.dtstartMs)}`,
 		`DTEND:${icsUtc(input.dtendMs)}`,
 		`SUMMARY:${escapeText(input.summary)}`,
+		...(input.description
+			? [`DESCRIPTION:${escapeText(input.description)}`]
+			: []),
 		`ORGANIZER;CN=${escapeText(input.organizerName)}:mailto:${input.organizerAddr}`,
 		`ATTENDEE;CN=${escapeText(input.attendeeName)};ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:${input.attendeeEmail}`,
 		`STATUS:${status}`,
