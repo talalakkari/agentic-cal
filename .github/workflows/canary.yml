@@ -1,0 +1,33 @@
+name: canary
+
+# Green-main bar for calendar correctness. Complements leakguard.yml:
+# typecheck + ICS / availability / iMIP smokes must pass on every PR and push.
+# No secrets or live feeds required (smokes use in-module fixtures/stubs).
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  canary:
+    name: typecheck + calendar smokes
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Typecheck
+        run: npm run typecheck
+      - name: smoke-ics
+        run: npx tsx scripts/smoke-ics.ts
+      - name: smoke-availability
+        run: npx tsx scripts/smoke-availability.ts
+      - name: smoke-imip
+        run: npx tsx scripts/smoke-imip.ts

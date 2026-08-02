@@ -33,7 +33,9 @@
 		"leakguard": "node scripts/leakguard.mjs --all",
 		"prepare": "node scripts/leakguard.mjs --install-hooks",
 		"preview": "npm run build && vite preview",
-		"typecheck": "npm run cf-typegen && react-router typegen && tsc -b"
+		"typecheck": "npm run cf-typegen && react-router typegen && tsc -b",
+		"smoke": "tsx scripts/smoke-ics.ts && tsx scripts/smoke-availability.ts && tsx scripts/smoke-imip.ts",
+		"canary": "npm run typecheck && npm run smoke"
 	},
 	"dependencies": {
 		"@cloudflare/ai-chat": "^0.1.8",
@@ -107,6 +109,7 @@
 		"@types/react": "^19.1.2",
 		"@types/react-dom": "^19.1.2",
 		"tailwindcss": "^4.1.4",
+		"tsx": "^4.23.1",
 		"typescript": "^5.8.3",
 		"vite": "^6.3.3",
 		"vite-tsconfig-paths": "^5.1.4",
