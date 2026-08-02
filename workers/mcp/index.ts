@@ -495,11 +495,17 @@ export class EmailMCP extends McpAgent<Env> {
 		// ── block_time ─────────────────────────────────────────────
 		this.server.tool(
 			"block_time",
-			"Block time across ALL calendars by emailing standards-compliant invites (iMIP) to each account. Asynchronous: returns immediately with status 'pending' (the slot counts as busy right away); acceptance per account is tracked by a workflow — check with get_block_status. Refuses with the conflict list if the window overlaps busy time, unless force is true.",
+			"Block time across ALL calendars by emailing standards-compliant invites (iMIP) to each account. Asynchronous: returns immediately with status 'pending' (the slot counts as busy right away); acceptance per account is tracked by a workflow — check with get_block_status. Refuses with the conflict list if the window overlaps busy time, unless force is true. Optional description becomes ICS DESCRIPTION and the invite body (SUMMARY stays title-only).",
 			{
 				start: z.string().describe("Block start, ISO 8601"),
 				end: z.string().describe("Block end, ISO 8601"),
 				title: z.string().describe("Event title shown on all calendars"),
+				description: z
+					.string()
+					.optional()
+					.describe(
+						"Optional agenda/notes. Emitted as ICS DESCRIPTION and included in the invite body; omit to keep today's title-only behavior",
+					),
 				force: z
 					.boolean()
 					.optional()

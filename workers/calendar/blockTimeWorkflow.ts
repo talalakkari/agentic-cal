@@ -21,6 +21,7 @@ import type { Env } from "../types";
 export interface BlockTimeParams {
 	uid: string;
 	title: string;
+	description?: string;
 	dtstart: number;
 	dtend: number;
 }
@@ -49,7 +50,7 @@ export class BlockTimeWorkflow extends WorkflowEntrypoint<Env, BlockTimeParams> 
 	}
 
 	private async runBlock(event: WorkflowEvent<BlockTimeParams>, step: WorkflowStep) {
-		const { uid, title, dtstart, dtend } = event.payload;
+		const { uid, title, description, dtstart, dtend } = event.payload;
 
 		// Step names are deterministic (no timestamps) — they key replay.
 		const feeds = (await step.do("load-feeds", async () => {
@@ -79,6 +80,7 @@ export class BlockTimeWorkflow extends WorkflowEntrypoint<Env, BlockTimeParams> 
 							uid,
 							sequence: 0,
 							title,
+							...(description ? { description } : {}),
 							dtstartMs: dtstart,
 							dtendMs: dtend,
 						});
@@ -134,6 +136,7 @@ export class BlockTimeWorkflow extends WorkflowEntrypoint<Env, BlockTimeParams> 
 								uid,
 								sequence: 0,
 								title,
+								...(description ? { description } : {}),
 								dtstartMs: dtstart,
 								dtendMs: dtend,
 							});
