@@ -146,6 +146,11 @@ export interface CalendarBlock {
 		partstat: "ACCEPTED" | "DECLINED" | "TENTATIVE" | "NEEDS-ACTION";
 		replied_at: string | null;
 	}>;
+	guests: Array<{
+		email: string;
+		partstat: "ACCEPTED" | "DECLINED" | "TENTATIVE" | "NEEDS-ACTION";
+		replied_at: string | null;
+	}>;
 }
 
 // ---------- API client ----------

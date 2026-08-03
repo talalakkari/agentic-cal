@@ -14,6 +14,7 @@
 import { createMimeMessage } from "mimetext";
 import { EmailMessage } from "cloudflare:email";
 import { buildIcs, type ImipMethod } from "./imip";
+import { guestDisplayName } from "./guests";
 import type { FeedRow } from "./calendarDO";
 import type { Env } from "../types";
 
@@ -43,9 +44,11 @@ function formatWhen(startMs: number, endMs: number): string {
 	return `${fmt.format(new Date(startMs))} – ${fmt.format(new Date(endMs))}`;
 }
 
-export async function sendImip(
+/** Send iMIP to one attendee (feed-backed or ad-hoc guest). */
+export async function sendImipToAttendee(
 	env: Env,
-	feed: FeedRow,
+	attendeeEmail: string,
+	attendeeName: string,
 	params: InviteParams,
 ): Promise<void> {
 	const ics = buildIcs({
@@ -58,8 +61,8 @@ export async function sendImip(
 		...(params.description ? { description: params.description } : {}),
 		organizerAddr: env.ORGANIZER_ADDR,
 		organizerName: ORGANIZER_NAME,
-		attendeeEmail: feed.invite_email,
-		attendeeName: feed.label,
+		attendeeEmail,
+		attendeeName,
 	});
 
 	const isCancel = params.method === "CANCEL";
@@ -77,25 +80,33 @@ export async function sendImip(
 
 	const msg = createMimeMessage();
 	msg.setSender({ name: ORGANIZER_NAME, addr: env.ORGANIZER_ADDR });
-	msg.setRecipient(feed.invite_email);
+	msg.setRecipient(attendeeEmail);
 	msg.setSubject(subject);
 	msg.addMessage({ contentType: "text/plain", data: textBody });
-	// The iMIP payload: a text/calendar part carrying the iTIP method. Emitted as
-	// an attachment because mimetext rejects text/calendar via addMessage (F-013).
 	msg.addAttachment({
 		filename: isCancel ? "cancel.ics" : "invite.ics",
 		contentType: `text/calendar; method=${params.method}; charset=UTF-8`,
-		data: btoa(unescape(encodeURIComponent(ics))), // base64 of UTF-8 bytes
+		data: btoa(unescape(encodeURIComponent(ics))),
 	});
 
-	const message = new EmailMessage(
-		env.ORGANIZER_ADDR,
-		feed.invite_email,
-		msg.asRaw(),
-	);
-	// The send_email binding accepts raw EmailMessage alongside the structured
-	// API used by workers/email-sender.ts.
+	const message = new EmailMessage(env.ORGANIZER_ADDR, attendeeEmail, msg.asRaw());
 	await (env.EMAIL as unknown as { send(m: EmailMessage): Promise<unknown> }).send(
 		message,
 	);
+}
+
+export async function sendImip(
+	env: Env,
+	feed: FeedRow,
+	params: InviteParams,
+): Promise<void> {
+	return sendImipToAttendee(env, feed.invite_email, feed.label, params);
+}
+
+export async function sendImipToGuest(
+	env: Env,
+	guestEmail: string,
+	params: InviteParams,
+): Promise<void> {
+	return sendImipToAttendee(env, guestEmail, guestDisplayName(guestEmail), params);
 }

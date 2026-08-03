@@ -495,7 +495,7 @@ export class EmailMCP extends McpAgent<Env> {
 		// ── block_time ─────────────────────────────────────────────
 		this.server.tool(
 			"block_time",
-			"Block time across ALL calendars by emailing standards-compliant invites (iMIP) to each account. Asynchronous: returns immediately with status 'pending' (the slot counts as busy right away); acceptance per account is tracked by a workflow — check with get_block_status. Refuses with the conflict list if the window overlaps busy time, unless force is true. Optional description becomes ICS DESCRIPTION and the invite body (SUMMARY stays title-only).",
+			"Block time across ALL calendars by emailing standards-compliant invites (iMIP) to each account. Asynchronous: returns immediately with status 'pending' (the slot counts as busy right away); acceptance per account is tracked by a workflow — check with get_block_status. Refuses with the conflict list if the window overlaps busy time, unless force is true. Optional description becomes ICS DESCRIPTION and the invite body (SUMMARY stays title-only). Optional guest_emails sends iMIP to ad-hoc addresses not tied to a registered feed.",
 			{
 				start: z.string().describe("Block start, ISO 8601"),
 				end: z.string().describe("Block end, ISO 8601"),
@@ -505,6 +505,12 @@ export class EmailMCP extends McpAgent<Env> {
 					.optional()
 					.describe(
 						"Optional agenda/notes. Emitted as ICS DESCRIPTION and included in the invite body; omit to keep today's title-only behavior",
+					),
+				guest_emails: z
+					.array(z.string().email())
+					.optional()
+					.describe(
+						"Optional ad-hoc guest emails (not registered feeds). Each receives a standard iMIP REQUEST; PARTSTAT is tracked on reply. Duplicates and feed invite addresses are dropped.",
 					),
 				force: z
 					.boolean()

@@ -76,4 +76,18 @@ export const calendarMigrations: Migration[] = [
 		name: "4_add_block_description",
 		sql: `ALTER TABLE blocks ADD COLUMN description TEXT;`,
 	},
+	{
+		// Ad-hoc guest invitees (emails not tied to a registered feed).
+		name: "5_add_block_guests",
+		sql: `
+            CREATE TABLE block_guests (
+                uid           TEXT NOT NULL REFERENCES blocks(uid),
+                guest_email   TEXT NOT NULL,
+                partstat      TEXT NOT NULL DEFAULT 'NEEDS-ACTION',
+                replied_at    INTEGER,
+                invite_sent_seq INTEGER,
+                PRIMARY KEY (uid, guest_email)
+            );
+        `,
+	},
 ];

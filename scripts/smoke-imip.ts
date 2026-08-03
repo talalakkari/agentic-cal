@@ -9,6 +9,7 @@ import PostalMime from "postal-mime";
 import { buildIcs, parseImip, hasInboundItipMethod } from "../workers/calendar/imip";
 import { findCalendarPart, isCalendarInbound, handleCalendarInbound } from "../workers/calendar/inbound";
 import { workflowIdForUid } from "../workers/calendar/poller";
+import { normalizeGuestEmails, guestWorkflowKey } from "../workers/calendar/guests";
 import type { Env } from "../workers/types";
 
 function assert(cond: boolean, msg: string) {
@@ -141,6 +142,26 @@ assert(!hasInboundItipMethod(ics), "outbound REQUEST is not inbound traffic");
 	assert(!wfId.includes("@") && !wfId.includes("."), "workflow id has no @ or . (the invalid_id chars)");
 	assert(workflowIdForUid(uid) === wfId, "workflow id derivation is deterministic");
 	assert(workflowIdForUid("01ABC@calendar.example.com") !== wfId, "distinct uids map to distinct workflow ids");
+}
+
+// ── ad-hoc guest email normalization ──
+{
+	const normalized = normalizeGuestEmails(
+		[" guest@example.com ", "guest@example.com", "dup@example.org"],
+		["dup@example.org"],
+	);
+	assert(normalized.length === 1 && normalized[0] === "guest@example.com", "guest emails normalize + dedupe + drop feed dupes");
+	assert(
+		guestWorkflowKey("guest@example.com") === guestWorkflowKey("guest@example.com"),
+		"guest workflow key is stable",
+	);
+	assert(!guestWorkflowKey("guest@example.com").includes(":"), "guest workflow key is colon-free");
+	try {
+		normalizeGuestEmails(["not-an-email"], []);
+		assert(false, "invalid guest email should throw");
+	} catch {
+		// expected
+	}
 }
 
 // ── dispatch predicate against real postal-mime parses (payload-based) ──

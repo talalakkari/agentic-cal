@@ -10,6 +10,7 @@
 
 import type { Email } from "postal-mime";
 import { hasInboundItipMethod, parseImip } from "./imip";
+import { guestWorkflowKey } from "./guests";
 import { getCalendarStub, workflowIdForUid } from "./poller";
 import type { Env } from "../types";
 
@@ -124,26 +125,35 @@ export async function handleCalendarInbound(
 		// iCloud feed whenever Proton sent both accounts' replies from the iCloud
 		// address — 2026-06-25.)
 		const feeds = await stub.listFeeds();
+		const replyEmail = (reply.attendeeEmail ?? sender).toLowerCase();
 		const feed =
 			(reply.attendeeEmail
-				? feeds.find(
-						(f) => f.invite_email.toLowerCase() === reply.attendeeEmail,
-					)
-				: undefined) ??
-			feeds.find((f) => f.invite_email.toLowerCase() === sender);
-		console.log(
-			`Calendar REPLY match: uid=${reply.uid} from=${sender} attendee=${reply.attendeeEmail ?? "none"} -> feed=${feed?.id ?? "NONE"} partstat=${reply.partstat}`,
-		);
-		if (!feed) {
-			console.warn(`Calendar REPLY (uid ${reply.uid}) from ${sender} attendee ${reply.attendeeEmail ?? "none"}: no feed matches — archived only`);
+				? feeds.find((f) => f.invite_email.toLowerCase() === reply.attendeeEmail)
+				: undefined) ?? feeds.find((f) => f.invite_email.toLowerCase() === sender);
+		if (feed) {
+			console.log(
+				`Calendar REPLY match: uid=${reply.uid} from=${sender} attendee=${reply.attendeeEmail ?? "none"} -> feed=${feed.id} partstat=${reply.partstat}`,
+			);
+			await stub.recordReply(reply.uid, feed.id, reply.partstat);
+			console.log(`Calendar REPLY: ${feed.id} -> ${reply.partstat} for ${reply.uid}`);
+			await notifyWorkflow(env, reply.uid, feed.id, reply.partstat);
 			return "handled";
 		}
 
-		await stub.recordReply(reply.uid, feed.id, reply.partstat);
-		console.log(`Calendar REPLY: ${feed.id} -> ${reply.partstat} for ${reply.uid}`);
+		const guest = block.guests.find((g) => g.guest_email.toLowerCase() === replyEmail);
+		if (guest) {
+			console.log(
+				`Calendar REPLY match: uid=${reply.uid} from=${sender} attendee=${reply.attendeeEmail ?? "none"} -> guest=${guest.guest_email} partstat=${reply.partstat}`,
+			);
+			await stub.recordGuestReply(reply.uid, guest.guest_email, reply.partstat);
+			console.log(`Calendar REPLY: guest ${guest.guest_email} -> ${reply.partstat} for ${reply.uid}`);
+			await notifyGuestWorkflow(env, reply.uid, guest.guest_email, reply.partstat);
+			return "handled";
+		}
 
-		// Wake the block's workflow if it's still waiting on this account.
-		await notifyWorkflow(env, reply.uid, feed.id, reply.partstat);
+		console.warn(
+			`Calendar REPLY (uid ${reply.uid}) from ${sender} attendee ${reply.attendeeEmail ?? "none"}: no feed or guest matches — archived only`,
+		);
 		return "handled";
 	} catch (e) {
 		console.error(`Calendar inbound from ${sender} failed:`, (e as Error).message);
@@ -185,8 +195,24 @@ async function notifyWorkflow(
 			payload: { partstat },
 		});
 	} catch (e) {
-		// Workflow may have finished (nag timeout elapsed) or never existed for
-		// re-polled historical blocks. The DO already recorded the reply.
 		console.log(`Workflow notify skipped for ${uid}: ${(e as Error).message}`);
+	}
+}
+
+async function notifyGuestWorkflow(
+	env: Env,
+	uid: string,
+	guestEmail: string,
+	partstat: string,
+): Promise<void> {
+	try {
+		const instance = await env.BLOCK_WORKFLOW.get(workflowIdForUid(uid));
+		const key = guestWorkflowKey(guestEmail);
+		await instance.sendEvent({
+			type: `reply-${key}`,
+			payload: { partstat },
+		});
+	} catch (e) {
+		console.log(`Workflow guest notify skipped for ${uid}: ${(e as Error).message}`);
 	}
 }

@@ -81,6 +81,7 @@ type ViewItem = {
 	status?: string; // blocks: pending|partial|confirmed
 	last_error?: string | null; // blocks: non-null = invites never went out
 	attendees?: Array<{ account: string; partstat: string; replied_at: string | null }>;
+	guests?: Array<{ email: string; partstat: string; replied_at: string | null }>;
 };
 
 export const calendarReadApp = new Hono<{ Bindings: Env }>();
@@ -181,6 +182,11 @@ calendarReadApp.get("/calendar/view", async (c) => {
 				account: a.feed_id,
 				partstat: a.partstat,
 				replied_at: a.replied_at ? new Date(a.replied_at).toISOString() : null,
+			})),
+			guests: b.guests.map((g) => ({
+				email: g.guest_email,
+				partstat: g.partstat,
+				replied_at: g.replied_at ? new Date(g.replied_at).toISOString() : null,
 			})),
 		});
 	}

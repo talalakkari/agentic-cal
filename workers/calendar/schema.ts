@@ -64,3 +64,14 @@ export const blockAttendees = sqliteTable("block_attendees", {
 	// already went out: the idempotency belt to step memoization (spec §8 part b).
 	invite_sent_seq: integer("invite_sent_seq"),
 });
+
+/** Ad-hoc invitees on a block (not tied to a registered feed). */
+export const blockGuests = sqliteTable("block_guests", {
+	uid: text("uid")
+		.notNull()
+		.references(() => blocks.uid),
+	guest_email: text("guest_email").notNull(),
+	partstat: text("partstat").notNull().default("NEEDS-ACTION"),
+	replied_at: integer("replied_at"),
+	invite_sent_seq: integer("invite_sent_seq"),
+});

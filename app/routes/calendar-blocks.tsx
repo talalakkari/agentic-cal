@@ -207,7 +207,7 @@ function BlockRow({
 					</div>
 				)}
 			</div>
-			<div className="flex items-center gap-2 text-xs text-kumo-subtle">
+			<div className="flex flex-wrap items-center gap-2 text-xs text-kumo-subtle">
 				{block.attendees.map((a) => (
 					<span
 						key={a.account}
@@ -215,6 +215,15 @@ function BlockRow({
 						className="rounded-full border border-kumo-line px-2 py-0.5"
 					>
 						{a.account} {PARTSTAT_GLYPH[a.partstat] ?? "?"}
+					</span>
+				))}
+				{block.guests.map((g) => (
+					<span
+						key={g.email}
+						title={`Guest ${g.email}: ${g.partstat}`}
+						className="rounded-full border border-dashed border-kumo-line px-2 py-0.5"
+					>
+						{g.email} {PARTSTAT_GLYPH[g.partstat] ?? "?"}
 					</span>
 				))}
 			</div>

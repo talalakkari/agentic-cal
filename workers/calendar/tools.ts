@@ -10,7 +10,8 @@ import {
 	type WorkingHours,
 } from "./availability";
 import { getCalendarStub, workflowIdForUid } from "./poller";
-import { sendImip } from "./send-invite";
+import { sendImip, sendImipToGuest } from "./send-invite";
+import { normalizeGuestEmails } from "./guests";
 import { ulid } from "./ulid";
 import type { Env } from "../types";
 
@@ -242,6 +243,7 @@ function blockToJson(block: {
 	status: string;
 	last_error?: string | null;
 	attendees?: Array<{ feed_id: string; partstat: string; replied_at: number | null }>;
+	guests?: Array<{ guest_email: string; partstat: string; replied_at: number | null }>;
 }) {
 	return {
 		uid: block.uid,
@@ -250,8 +252,6 @@ function blockToJson(block: {
 		start: iso(block.dtstart),
 		end: iso(block.dtend),
 		status: block.status,
-		// A pending block with workflow_failed=true is holding the slot but its
-		// invites never went out — distinct from a healthy pending block.
 		...(block.last_error ? { workflow_failed: true, last_error: block.last_error } : {}),
 		...(block.attendees
 			? {
@@ -259,6 +259,15 @@ function blockToJson(block: {
 						account: a.feed_id,
 						partstat: a.partstat,
 						replied_at: a.replied_at ? iso(a.replied_at) : null,
+					})),
+				}
+			: {}),
+		...(block.guests?.length
+			? {
+					guests: block.guests.map((g) => ({
+						email: g.guest_email,
+						partstat: g.partstat,
+						replied_at: g.replied_at ? iso(g.replied_at) : null,
 					})),
 				}
 			: {}),
@@ -272,7 +281,14 @@ function blockToJson(block: {
  */
 export async function toolBlockTime(
 	env: Env,
-	args: { start: string; end: string; title: string; description?: string; force?: boolean },
+	args: {
+		start: string;
+		end: string;
+		title: string;
+		description?: string;
+		guest_emails?: string[];
+		force?: boolean;
+	},
 ): Promise<Record<string, unknown>> {
 	try {
 		const startMs = parseIso("start", args.start);
@@ -287,14 +303,17 @@ export async function toolBlockTime(
 		if (feeds.length === 0) {
 			throw new Error("No calendar feeds registered — register feeds before blocking time");
 		}
+		const guestEmails = normalizeGuestEmails(
+			args.guest_emails,
+			feeds.map((f) => f.invite_email),
+		);
 
 		const uid = `${ulid()}@calendar.${organizerDomain(env)}`;
-		// Atomic conflict-check + create (single DO critical section) so two
-		// concurrent block_time calls can't both book the same slot.
 		const { created, conflicts } = await stub.createBlockIfFree({
 			uid,
 			title,
 			description: description ?? null,
+			guest_emails: guestEmails,
 			dtstart: startMs,
 			dtend: endMs,
 			force: args.force,
@@ -345,6 +364,7 @@ export async function toolBlockTime(
 			uid,
 			status: "pending",
 			conflicts: [],
+			...(guestEmails.length ? { guest_emails: guestEmails } : {}),
 			// Honest about the async write path (F-013): the block counts as busy now,
 			// but invites are sent in the background and are NOT yet confirmed here. The
 			// agent must not tell the user invites went out until get_block_status shows
@@ -412,6 +432,21 @@ export async function toolCancelBlock(
 				failures.push(`${feed.id}: ${(e as Error).message}`);
 			}
 		}
+		for (const guest of block.guests) {
+			try {
+				await sendImipToGuest(env, guest.guest_email, {
+					method: "CANCEL",
+					uid: args.uid,
+					sequence,
+					title: block.title,
+					...(block.description ? { description: block.description } : {}),
+					dtstartMs: block.dtstart,
+					dtendMs: block.dtend,
+				});
+			} catch (e) {
+				failures.push(`guest ${guest.guest_email}: ${(e as Error).message}`);
+			}
+		}
 
 		return {
 			uid: args.uid,
@@ -428,7 +463,7 @@ export async function toolListBlocks(
 	args: { window_start?: string; window_end?: string; status?: string },
 ): Promise<Record<string, unknown>> {
 	try {
-		const blocks = await getCalendarStub(env).listBlocks({
+		const blocks = await getCalendarStub(env).listBlocksWithAttendees({
 			fromMs: args.window_start ? parseIso("window_start", args.window_start) : undefined,
 			toMs: args.window_end ? parseIso("window_end", args.window_end) : undefined,
 			status: args.status,
