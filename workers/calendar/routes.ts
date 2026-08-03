@@ -97,6 +97,11 @@ calendarApp.get("/blocks", async (c) => {
 				partstat: a.partstat,
 				replied_at: a.replied_at ? new Date(a.replied_at).toISOString() : null,
 			})),
+			guests: b.guests.map((g) => ({
+				email: g.guest_email,
+				partstat: g.partstat,
+				replied_at: g.replied_at ? new Date(g.replied_at).toISOString() : null,
+			})),
 		})),
 	});
 });

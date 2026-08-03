@@ -633,6 +633,15 @@ function DetailDialog({ item, onClose }: { item: CalItem | null; onClose: () => 
 											{a.account} {PARTSTAT_GLYPH[a.partstat] ?? "?"}
 										</span>
 									))}
+									{item.block.guests.map((g) => (
+										<span
+											key={g.email}
+											className="rounded-full border border-dashed border-kumo-line px-2 py-0.5"
+											title={`Guest: ${g.partstat}`}
+										>
+											{g.email} {PARTSTAT_GLYPH[g.partstat] ?? "?"}
+										</span>
+									))}
 								</div>
 							</div>
 						)}

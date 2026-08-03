@@ -350,7 +350,7 @@ function createEmailTools(env: Env, mailboxId: string) {
 
 		block_time: defineTool({
 			description:
-				"Block time on ALL calendars by emailing invites to each account. Asynchronous: returns 'pending' immediately and the slot counts as busy. Refuses with a conflict list when the window overlaps busy time unless force is true. Optional description becomes ICS DESCRIPTION and the invite body (SUMMARY stays title-only). Only use when the operator explicitly asks to block/book time.",
+				"Block time on ALL calendars by emailing invites to each account. Asynchronous: returns 'pending' immediately and the slot counts as busy. Refuses with a conflict list when the window overlaps busy time unless force is true. Optional description becomes ICS DESCRIPTION and the invite body (SUMMARY stays title-only). Optional guest_emails invites ad-hoc addresses beyond registered feeds. Only use when the operator explicitly asks to block/book time.",
 			parameters: z.object({
 				start: z.string().describe("Block start, ISO 8601"),
 				end: z.string().describe("Block end, ISO 8601"),
@@ -361,6 +361,12 @@ function createEmailTools(env: Env, mailboxId: string) {
 					.describe(
 						"Optional agenda/notes. Emitted as ICS DESCRIPTION and included in the invite body; omit to keep today's title-only behavior",
 					),
+				guest_emails: z
+					.array(z.string().email())
+					.optional()
+					.describe(
+						"Optional ad-hoc guest emails (not registered feeds). Each receives iMIP REQUEST; PARTSTAT tracked on reply.",
+					),
 				force: z.boolean().optional().describe("Book even if it conflicts"),
 			}),
 			execute: async (args: {
@@ -368,6 +374,7 @@ function createEmailTools(env: Env, mailboxId: string) {
 				end: string;
 				title: string;
 				description?: string;
+				guest_emails?: string[];
 				force?: boolean;
 			}): Promise<unknown> => {
 				return toolBlockTime(env, args);

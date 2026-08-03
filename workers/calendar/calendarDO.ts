@@ -209,10 +209,12 @@ export class CalendarDO extends DurableObject<Env> {
 		description?: string | null;
 		dtstart: number;
 		dtend: number;
+		guest_emails?: string[];
 		workflow_id?: string;
 		created_by?: string;
 	}): Promise<void> {
 		const feedRows = await this.db.select().from(schema.feeds);
+		const guestEmails = input.guest_emails ?? [];
 		const sqlStorage = this.ctx.storage.sql;
 		this.ctx.storage.transactionSync(() => {
 			sqlStorage.exec(
@@ -234,6 +236,13 @@ export class CalendarDO extends DurableObject<Env> {
 					feed.id,
 				);
 			}
+			for (const guestEmail of guestEmails) {
+				sqlStorage.exec(
+					`INSERT INTO block_guests (uid, guest_email, partstat) VALUES (?, ?, 'NEEDS-ACTION')`,
+					input.uid,
+					guestEmail,
+				);
+			}
 		});
 	}
 
@@ -248,6 +257,7 @@ export class CalendarDO extends DurableObject<Env> {
 		uid: string;
 		title: string;
 		description?: string | null;
+		guest_emails?: string[];
 		dtstart: number;
 		dtend: number;
 		force?: boolean;
@@ -267,6 +277,7 @@ export class CalendarDO extends DurableObject<Env> {
 				uid: input.uid,
 				title: input.title,
 				description: input.description,
+				guest_emails: input.guest_emails,
 				dtstart: input.dtstart,
 				dtend: input.dtend,
 				created_by: input.created_by,
@@ -285,6 +296,7 @@ export class CalendarDO extends DurableObject<Env> {
 		status: string;
 		last_error: string | null;
 		attendees: Array<{ feed_id: string; partstat: string; replied_at: number | null }>;
+		guests: Array<{ guest_email: string; partstat: string; replied_at: number | null }>;
 	} | null> {
 		const [block] = await this.db
 			.select()
@@ -295,6 +307,10 @@ export class CalendarDO extends DurableObject<Env> {
 			.select()
 			.from(schema.blockAttendees)
 			.where(eq(schema.blockAttendees.uid, uid));
+		const guests = await this.db
+			.select()
+			.from(schema.blockGuests)
+			.where(eq(schema.blockGuests.uid, uid));
 		return {
 			uid: block.uid,
 			title: block.title,
@@ -308,6 +324,11 @@ export class CalendarDO extends DurableObject<Env> {
 				feed_id: a.feed_id,
 				partstat: a.partstat,
 				replied_at: a.replied_at,
+			})),
+			guests: guests.map((g) => ({
+				guest_email: g.guest_email,
+				partstat: g.partstat,
+				replied_at: g.replied_at,
 			})),
 		};
 	}
@@ -338,27 +359,45 @@ export class CalendarDO extends DurableObject<Env> {
 		Array<
 			typeof schema.blocks.$inferSelect & {
 				attendees: Array<{ feed_id: string; partstat: string; replied_at: number | null }>;
+				guests: Array<{ guest_email: string; partstat: string; replied_at: number | null }>;
 			}
 		>
 	> {
 		const blockRows = await this.listBlocks(opts);
 		if (blockRows.length === 0) return [];
+		const uids = blockRows.map((b) => b.uid);
 		const attendeeRows = await this.db
 			.select()
 			.from(schema.blockAttendees)
-			.where(
-				inArray(
-					schema.blockAttendees.uid,
-					blockRows.map((b) => b.uid),
-				),
-			);
+			.where(inArray(schema.blockAttendees.uid, uids));
+		const guestRows = await this.db
+			.select()
+			.from(schema.blockGuests)
+			.where(inArray(schema.blockGuests.uid, uids));
 		const byUid = new Map<string, Array<{ feed_id: string; partstat: string; replied_at: number | null }>>();
 		for (const a of attendeeRows) {
 			const list = byUid.get(a.uid) ?? [];
 			list.push({ feed_id: a.feed_id, partstat: a.partstat, replied_at: a.replied_at });
 			byUid.set(a.uid, list);
 		}
-		return blockRows.map((b) => ({ ...b, attendees: byUid.get(b.uid) ?? [] }));
+		const guestsByUid = new Map<
+			string,
+			Array<{ guest_email: string; partstat: string; replied_at: number | null }>
+		>();
+		for (const g of guestRows) {
+			const list = guestsByUid.get(g.uid) ?? [];
+			list.push({
+				guest_email: g.guest_email,
+				partstat: g.partstat,
+				replied_at: g.replied_at,
+			});
+			guestsByUid.set(g.uid, list);
+		}
+		return blockRows.map((b) => ({
+			...b,
+			attendees: byUid.get(b.uid) ?? [],
+			guests: guestsByUid.get(b.uid) ?? [],
+		}));
 	}
 
 	/** Overlapping busy time (for block_time conflict detection). */
@@ -398,6 +437,30 @@ export class CalendarDO extends DurableObject<Env> {
 		return true;
 	}
 
+	async recordGuestReply(
+		uid: string,
+		guestEmail: string,
+		partstat: string,
+	): Promise<boolean> {
+		const [block] = await this.db
+			.select()
+			.from(schema.blocks)
+			.where(eq(schema.blocks.uid, uid));
+		if (!block) return false;
+
+		await this.db
+			.update(schema.blockGuests)
+			.set({ partstat, replied_at: Date.now() })
+			.where(
+				and(
+					eq(schema.blockGuests.uid, uid),
+					eq(schema.blockGuests.guest_email, guestEmail.toLowerCase()),
+				),
+			);
+		await this.recomputeBlockStatus(uid);
+		return true;
+	}
+
 	/**
 	 * Idempotency guard for the BlockTimeWorkflow send legs (spec §8 part b).
 	 * True once a REQUEST invite at >= `sequence` has been recorded sent to this
@@ -430,6 +493,31 @@ export class CalendarDO extends DurableObject<Env> {
 			);
 	}
 
+	async wasGuestInviteSent(uid: string, guestEmail: string, sequence: number): Promise<boolean> {
+		const [row] = await this.db
+			.select({ sent: schema.blockGuests.invite_sent_seq })
+			.from(schema.blockGuests)
+			.where(
+				and(
+					eq(schema.blockGuests.uid, uid),
+					eq(schema.blockGuests.guest_email, guestEmail.toLowerCase()),
+				),
+			);
+		return row?.sent != null && row.sent >= sequence;
+	}
+
+	async markGuestInviteSent(uid: string, guestEmail: string, sequence: number): Promise<void> {
+		await this.db
+			.update(schema.blockGuests)
+			.set({ invite_sent_seq: sequence })
+			.where(
+				and(
+					eq(schema.blockGuests.uid, uid),
+					eq(schema.blockGuests.guest_email, guestEmail.toLowerCase()),
+				),
+			);
+	}
+
 	/**
 	 * pending -> all NEEDS-ACTION outstanding; confirmed -> every attendee
 	 * accepted; partial -> mixed/declined (spec §11.7: no auto-cancel — the
@@ -446,12 +534,17 @@ export class CalendarDO extends DurableObject<Env> {
 			.select()
 			.from(schema.blockAttendees)
 			.where(eq(schema.blockAttendees.uid, uid));
+		const guests = await this.db
+			.select()
+			.from(schema.blockGuests)
+			.where(eq(schema.blockGuests.uid, uid));
 
+		const invitees = [...attendees, ...guests];
 		let status = "pending";
-		if (attendees.length > 0) {
-			const accepted = attendees.filter((a) => a.partstat === "ACCEPTED").length;
-			const responded = attendees.filter((a) => a.partstat !== "NEEDS-ACTION").length;
-			if (accepted === attendees.length) status = "confirmed";
+		if (invitees.length > 0) {
+			const accepted = invitees.filter((a) => a.partstat === "ACCEPTED").length;
+			const responded = invitees.filter((a) => a.partstat !== "NEEDS-ACTION").length;
+			if (accepted === invitees.length) status = "confirmed";
 			else if (responded > 0) status = "partial";
 		}
 
@@ -512,8 +605,9 @@ export class CalendarDO extends DurableObject<Env> {
 			.from(schema.blocks)
 			.where(eq(schema.blocks.uid, uid));
 		if (!block || block.status !== "cancelled") return false;
-		// Child rows first (block_attendees references blocks(uid)).
+		// Child rows first (block_attendees / block_guests reference blocks(uid)).
 		await this.db.delete(schema.blockAttendees).where(eq(schema.blockAttendees.uid, uid));
+		await this.db.delete(schema.blockGuests).where(eq(schema.blockGuests.uid, uid));
 		await this.db.delete(schema.blocks).where(eq(schema.blocks.uid, uid));
 		return true;
 	}
@@ -531,6 +625,7 @@ export class CalendarDO extends DurableObject<Env> {
 		if (rows.length === 0) return 0;
 		const uids = rows.map((r) => r.uid);
 		await this.db.delete(schema.blockAttendees).where(inArray(schema.blockAttendees.uid, uids));
+		await this.db.delete(schema.blockGuests).where(inArray(schema.blockGuests.uid, uids));
 		await this.db.delete(schema.blocks).where(eq(schema.blocks.status, "cancelled"));
 		return rows.length;
 	}

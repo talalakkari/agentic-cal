@@ -13,7 +13,8 @@ import {
 	type WorkflowStep,
 } from "cloudflare:workers";
 import { getCalendarStub } from "./poller";
-import { sendImip } from "./send-invite";
+import { guestWorkflowKey } from "./guests";
+import { sendImip, sendImipToGuest, type InviteParams } from "./send-invite";
 import { sendEmail } from "../email-sender";
 import type { FeedRow } from "./calendarDO";
 import type { Env } from "../types";
@@ -26,17 +27,13 @@ export interface BlockTimeParams {
 	dtend: number;
 }
 
+type BlockGuestRow = { guest_email: string; partstat: string; replied_at: number | null };
+
 export class BlockTimeWorkflow extends WorkflowEntrypoint<Env, BlockTimeParams> {
 	async run(event: WorkflowEvent<BlockTimeParams>, step: WorkflowStep) {
 		try {
 			await this.runBlock(event, step);
 		} catch (e) {
-			// Terminal workflow failure (e.g. invite send exhausted its retries):
-			// flag the block so a stuck-pending block surfaces a reason instead of
-			// looking healthy. Best-effort + guarded against cancelled blocks
-			// (recordBlockError skips status='cancelled'), so a cancel-time
-			// termination is never mislabeled a failure. Re-throw so Workflows
-			// still records the instance as errored.
 			try {
 				await getCalendarStub(this.env).recordBlockError(
 					event.payload.uid,
@@ -52,21 +49,22 @@ export class BlockTimeWorkflow extends WorkflowEntrypoint<Env, BlockTimeParams> 
 	private async runBlock(event: WorkflowEvent<BlockTimeParams>, step: WorkflowStep) {
 		const { uid, title, description, dtstart, dtend } = event.payload;
 
-		// Step names are deterministic (no timestamps) — they key replay.
-		const feeds = (await step.do("load-feeds", async () => {
+		const { feeds, guests } = (await step.do("load-targets", async () => {
 			const stub = getCalendarStub(this.env);
 			const block = await stub.getBlock(uid);
 			if (!block) throw new Error(`Block ${uid} not found — was it cancelled before start?`);
-			return stub.listFeeds();
-		})) as FeedRow[];
+			return { feeds: await stub.listFeeds(), guests: block.guests };
+		})) as { feeds: FeedRow[]; guests: BlockGuestRow[] };
 
-		// Send the REQUEST to every feed as an INDEPENDENT leg. allSettled (not a
-		// sequential await loop) so a leg that exhausts its retries can't abort the
-		// other legs or fail the whole run(), which would mislabel the block
-		// "invite failed" even when other feeds were invited, and on replay re-fire
-		// the succeeded legs (spec §8 known limitation, "B"). Each leg is also
-		// DB-guarded (wasInviteSent/markInviteSent) so a replay never re-emits an
-		// invite already sent: the idempotency belt to step memoization (part b).
+		const inviteParams: Omit<InviteParams, "method"> = {
+			uid,
+			sequence: 0,
+			title,
+			...(description ? { description } : {}),
+			dtstartMs: dtstart,
+			dtendMs: dtend,
+		};
+
 		const sendOutcomes = await Promise.allSettled(
 			feeds.map((feed) =>
 				step.do(
@@ -74,43 +72,45 @@ export class BlockTimeWorkflow extends WorkflowEntrypoint<Env, BlockTimeParams> 
 					{ retries: { limit: 3, delay: "30 seconds", backoff: "exponential" } },
 					async () => {
 						const stub = getCalendarStub(this.env);
-						if (await stub.wasInviteSent(uid, feed.id, 0)) return; // already sent (replay)
-						await sendImip(this.env, feed, {
-							method: "REQUEST",
-							uid,
-							sequence: 0,
-							title,
-							...(description ? { description } : {}),
-							dtstartMs: dtstart,
-							dtendMs: dtend,
-						});
+						if (await stub.wasInviteSent(uid, feed.id, 0)) return;
+						await sendImip(this.env, feed, { method: "REQUEST", ...inviteParams });
 						await stub.markInviteSent(uid, feed.id, 0);
 					},
 				),
 			),
 		);
 
-		const sentFeeds = feeds.filter((_, i) => sendOutcomes[i].status === "fulfilled");
+		const guestSendOutcomes = await Promise.allSettled(
+			guests.map((guest) =>
+				step.do(
+					`send-imip-${guestWorkflowKey(guest.guest_email)}`,
+					{ retries: { limit: 3, delay: "30 seconds", backoff: "exponential" } },
+					async () => {
+						const stub = getCalendarStub(this.env);
+						if (await stub.wasGuestInviteSent(uid, guest.guest_email, 0)) return;
+						await sendImipToGuest(this.env, guest.guest_email, {
+							method: "REQUEST",
+							...inviteParams,
+						});
+						await stub.markGuestInviteSent(uid, guest.guest_email, 0);
+					},
+				),
+			),
+		);
 
-		// Only a TOTAL send failure (feeds existed but every leg failed -> no
-		// invites went out at all) throws: surfacing the existing "invite failed"
-		// badge via the outer run() catch -> recordBlockError, and letting Workflows
-		// retry the run to re-attempt the sends. A partial failure does NOT throw:
-		// the legs that sent proceed through the normal accept lifecycle below.
-		if (feeds.length > 0 && sentFeeds.length === 0) {
+		const sentFeeds = feeds.filter((_, i) => sendOutcomes[i].status === "fulfilled");
+		const sentGuests = guests.filter((_, i) => guestSendOutcomes[i].status === "fulfilled");
+		const totalTargets = feeds.length + guests.length;
+		const totalSent = sentFeeds.length + sentGuests.length;
+
+		if (totalTargets > 0 && totalSent === 0) {
 			throw new Error(
-				`All ${feeds.length} invite send legs failed, no invites went out for block ${uid}`,
+				`All ${totalTargets} invite send legs failed, no invites went out for block ${uid}`,
 			);
 		}
 
-		// Wait only on feeds whose invite actually went out (routed in by the
-		// email() dispatch layer; timeouts reject, replies resolve). A failed-send
-		// feed never got an invite, so its attendee row stays NEEDS-ACTION and the
-		// block finalizes `partial`: the honest signal.
-		const firstRound = await Promise.allSettled(
+		const firstRoundFeeds = await Promise.allSettled(
 			sentFeeds.map((feed) =>
-				// Event type is colon-free: a `:` makes sendEvent throw
-				// invalid_event_type (see inbound.ts notifyWorkflow). Keep in sync.
 				step.waitForEvent(`await-${feed.id}`, {
 					type: `reply-${feed.id}`,
 					timeout: "24 hours",
@@ -118,52 +118,65 @@ export class BlockTimeWorkflow extends WorkflowEntrypoint<Env, BlockTimeParams> 
 			),
 		);
 
-		const unanswered = sentFeeds.filter((_, i) => firstRound[i].status === "rejected");
-		if (unanswered.length > 0) {
-			// Nag = re-send the same invite (same UID/SEQUENCE, clients surface it
-			// again rather than duplicating), then wait once more. allSettled so a
-			// failing nag leg can't fail the run(). NOT DB-guarded: the nag is an
-			// intentional same-sequence re-send (a reminder), distinct from the
-			// replay re-send the marker suppresses on the initial leg.
-			await Promise.allSettled(
-				unanswered.map((feed) =>
+		const firstRoundGuests = await Promise.allSettled(
+			sentGuests.map((guest) =>
+				step.waitForEvent(`await-${guestWorkflowKey(guest.guest_email)}`, {
+					type: `reply-${guestWorkflowKey(guest.guest_email)}`,
+					timeout: "24 hours",
+				}),
+			),
+		);
+
+		const unansweredFeeds = sentFeeds.filter((_, i) => firstRoundFeeds[i].status === "rejected");
+		const unansweredGuests = sentGuests.filter(
+			(_, i) => firstRoundGuests[i].status === "rejected",
+		);
+
+		if (unansweredFeeds.length > 0 || unansweredGuests.length > 0) {
+			await Promise.allSettled([
+				...unansweredFeeds.map((feed) =>
 					step.do(
 						`send-nag-${feed.id}`,
 						{ retries: { limit: 3, delay: "30 seconds", backoff: "exponential" } },
 						async () => {
-							await sendImip(this.env, feed, {
+							await sendImip(this.env, feed, { method: "REQUEST", ...inviteParams });
+						},
+					),
+				),
+				...unansweredGuests.map((guest) =>
+					step.do(
+						`send-nag-${guestWorkflowKey(guest.guest_email)}`,
+						{ retries: { limit: 3, delay: "30 seconds", backoff: "exponential" } },
+						async () => {
+							await sendImipToGuest(this.env, guest.guest_email, {
 								method: "REQUEST",
-								uid,
-								sequence: 0,
-								title,
-								...(description ? { description } : {}),
-								dtstartMs: dtstart,
-								dtendMs: dtend,
+								...inviteParams,
 							});
 						},
 					),
 				),
-			);
-			await Promise.allSettled(
-				unanswered.map((feed) =>
+			]);
+
+			await Promise.allSettled([
+				...unansweredFeeds.map((feed) =>
 					step.waitForEvent(`await-${feed.id}-2`, {
 						type: `reply-${feed.id}`,
 						timeout: "48 hours",
 					}),
 				),
-			);
+				...unansweredGuests.map((guest) =>
+					step.waitForEvent(`await-${guestWorkflowKey(guest.guest_email)}-2`, {
+						type: `reply-${guestWorkflowKey(guest.guest_email)}`,
+						timeout: "48 hours",
+					}),
+				),
+			]);
 		}
 
-		// Recompute from block_attendees — REPLY handling already updated the
-		// rows as events arrived; DECLINED finalizes as `partial`, the agent
-		// decides what to do (spec §11.7 — no auto-cancel).
 		const finalStatus = await step.do("finalize-status", async () => {
 			return getCalendarStub(this.env).recomputeBlockStatus(uid);
 		});
 
-		// Surface a decline to the operator (U3): `partial` means at least one
-		// account responded but not all accepted (includes any DECLINED). No-op
-		// unless OPERATOR_NOTIFY_ADDR is configured.
 		if (finalStatus === "partial") {
 			await step.do("notify-partial", async () => {
 				await notifyPartial(this.env, uid, title, dtstart);
@@ -172,11 +185,6 @@ export class BlockTimeWorkflow extends WorkflowEntrypoint<Env, BlockTimeParams> 
 	}
 }
 
-/**
- * Email the operator a one-line heads-up when a block doesn't get full
- * acceptance. Best-effort and config-gated; the /calendar status view is the
- * always-on surface for this.
- */
 async function notifyPartial(
 	env: Env,
 	uid: string,
@@ -184,18 +192,24 @@ async function notifyPartial(
 	dtstartMs: number,
 ): Promise<void> {
 	const to = env.OPERATOR_NOTIFY_ADDR;
-	if (!to) return; // notifications disabled
+	if (!to) return;
 
 	const block = await getCalendarStub(env).getBlock(uid);
-	const declined =
+	const declinedFeeds =
 		block?.attendees.filter((a) => a.partstat === "DECLINED").map((a) => a.feed_id) ?? [];
-	const unanswered =
+	const declinedGuests =
+		block?.guests.filter((g) => g.partstat === "DECLINED").map((g) => g.guest_email) ?? [];
+	const unansweredFeeds =
 		block?.attendees.filter((a) => a.partstat === "NEEDS-ACTION").map((a) => a.feed_id) ?? [];
+	const unansweredGuests =
+		block?.guests.filter((g) => g.partstat === "NEEDS-ACTION").map((g) => g.guest_email) ?? [];
 
 	const lines = [
-		`Time block "${title}" (${new Date(dtstartMs).toISOString()}) finalized as PARTIAL — not every calendar accepted.`,
-		declined.length ? `Declined: ${declined.join(", ")}` : "",
-		unanswered.length ? `No response: ${unanswered.join(", ")}` : "",
+		`Time block "${title}" (${new Date(dtstartMs).toISOString()}) finalized as PARTIAL — not every invitee accepted.`,
+		declinedFeeds.length ? `Declined (feeds): ${declinedFeeds.join(", ")}` : "",
+		declinedGuests.length ? `Declined (guests): ${declinedGuests.join(", ")}` : "",
+		unansweredFeeds.length ? `No response (feeds): ${unansweredFeeds.join(", ")}` : "",
+		unansweredGuests.length ? `No response (guests): ${unansweredGuests.join(", ")}` : "",
 		`uid: ${uid}`,
 	].filter(Boolean);
 
