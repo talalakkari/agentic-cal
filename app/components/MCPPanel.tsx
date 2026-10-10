@@ -66,6 +66,7 @@ const TOOLS = [
 	{ name: "find_free_slots", desc: "Find open slots for a duration" },
 	{ name: "block_time", desc: "Block time on all calendars via invites" },
 	{ name: "get_block_status", desc: "Check who has accepted a block" },
+	{ name: "update_block", desc: "Update a block in place (same UID, SEQUENCE+1)" },
 	{ name: "cancel_block", desc: "Cancel a block on all calendars" },
 	{ name: "list_blocks", desc: "List agent-created time blocks" },
 	{ name: "list_calendars", desc: "List calendar feeds + ingest health" },

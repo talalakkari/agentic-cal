@@ -8,7 +8,7 @@ import PostalMime from "postal-mime";
 // structure (folding, escaping, dispatch), not the specific domain.
 import { buildIcs, parseImip, hasInboundItipMethod } from "../workers/calendar/imip";
 import { findCalendarPart, isCalendarInbound, handleCalendarInbound } from "../workers/calendar/inbound";
-import { workflowIdForUid } from "../workers/calendar/poller";
+import { workflowIdForUid, workflowInstanceId } from "../workers/calendar/poller";
 import { normalizeGuestEmails, guestWorkflowKey } from "../workers/calendar/guests";
 import type { Env } from "../workers/types";
 
@@ -142,6 +142,36 @@ assert(!hasInboundItipMethod(ics), "outbound REQUEST is not inbound traffic");
 	assert(!wfId.includes("@") && !wfId.includes("."), "workflow id has no @ or . (the invalid_id chars)");
 	assert(workflowIdForUid(uid) === wfId, "workflow id derivation is deterministic");
 	assert(workflowIdForUid("01ABC@calendar.example.com") !== wfId, "distinct uids map to distinct workflow ids");
+	assert(workflowInstanceId(uid, 0) === wfId, "sequence 0 keeps historical create id");
+	assert(
+		workflowInstanceId(uid, 1) === `${wfId}-s1`,
+		"sequence >= 1 uses unique -sN suffix (Rules of Workflows: no id reuse)",
+	);
+	assert(
+		workflowInstanceId(uid, 2) !== workflowInstanceId(uid, 1),
+		"each SEQUENCE bump gets a distinct workflow instance id",
+	);
+}
+
+// ── update REQUEST bumps SEQUENCE on the same UID ──
+{
+	const updateIcs = buildIcs({
+		method: "REQUEST",
+		uid: "01J9ZK7M3QX@calendar.example.com",
+		sequence: 1,
+		dtstartMs: Date.parse("2026-06-18T21:00:00Z"),
+		dtendMs: Date.parse("2026-06-18T23:00:00Z"),
+		summary: "Deep work",
+		description: "Gate code: room 12",
+		organizerAddr: "calendar@example.com",
+		organizerName: "T9 Calendar",
+		attendeeEmail: "me@proton.example",
+		attendeeName: "Personal",
+	});
+	assert(updateIcs.includes("METHOD:REQUEST"), "update is still METHOD:REQUEST");
+	assert(updateIcs.includes("UID:01J9ZK7M3QX@calendar.example.com"), "update keeps same UID");
+	assert(updateIcs.includes("SEQUENCE:1"), "update REQUEST carries bumped SEQUENCE");
+	assert(updateIcs.includes("DESCRIPTION:Gate code: room 12"), "update REQUEST carries DESCRIPTION");
 }
 
 // ── ad-hoc guest email normalization ──

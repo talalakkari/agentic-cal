@@ -26,6 +26,7 @@ import {
 	toolFindFreeSlots,
 	toolBlockTime,
 	toolGetBlockStatus,
+	toolUpdateBlock,
 	toolCancelBlock,
 	toolDeleteBlock,
 	toolPurgeCancelledBlocks,
@@ -532,6 +533,33 @@ export class EmailMCP extends McpAgent<Env> {
 			},
 			async (args) => {
 				const result = await toolGetBlockStatus(env, args);
+				return mcpResult(result);
+			},
+		);
+
+		// ── update_block ───────────────────────────────────────────
+		this.server.tool(
+			"update_block",
+			"Update an existing block in place (same UID, SEQUENCE+1, METHOD:REQUEST to every feed and guest). Use this to change title, description, or times — do NOT cancel+recreate for DESCRIPTION-only edits. Omit a field to leave it unchanged; pass description as empty string to clear it. Asynchronous like block_time.",
+			{
+				uid: z.string().describe("The block uid returned by block_time"),
+				title: z.string().optional().describe("New title; omit to leave unchanged"),
+				description: z
+					.string()
+					.nullable()
+					.optional()
+					.describe(
+						"New agenda/notes. Omit to leave unchanged; empty string or null clears DESCRIPTION",
+					),
+				start: z.string().optional().describe("New start, ISO 8601; omit to leave unchanged"),
+				end: z.string().optional().describe("New end, ISO 8601; omit to leave unchanged"),
+				force: z
+					.boolean()
+					.optional()
+					.describe("Update even if the new window conflicts with busy time"),
+			},
+			async (args) => {
+				const result = await toolUpdateBlock(env, args);
 				return mcpResult(result);
 			},
 		);

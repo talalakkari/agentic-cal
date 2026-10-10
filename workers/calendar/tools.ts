@@ -9,7 +9,7 @@ import {
 	mergeIntervals,
 	type WorkingHours,
 } from "./availability";
-import { getCalendarStub, workflowIdForUid } from "./poller";
+import { getCalendarStub, workflowIdForUid, workflowInstanceId } from "./poller";
 import { sendImip, sendImipToGuest } from "./send-invite";
 import { normalizeGuestEmails } from "./guests";
 import { ulid } from "./ulid";
@@ -251,6 +251,7 @@ function blockToJson(block: {
 		...(block.description ? { description: block.description } : {}),
 		start: iso(block.dtstart),
 		end: iso(block.dtend),
+		...(block.sequence !== undefined ? { sequence: block.sequence } : {}),
 		status: block.status,
 		...(block.last_error ? { workflow_failed: true, last_error: block.last_error } : {}),
 		...(block.attendees
@@ -338,9 +339,10 @@ export async function toolBlockTime(
 		let instance: { id: string };
 		try {
 			instance = await env.BLOCK_WORKFLOW.create({
-				id: workflowIdForUid(uid),
+				id: workflowInstanceId(uid, 0),
 				params: {
 					uid,
+					sequence: 0,
 					title,
 					...(description ? { description } : {}),
 					dtstart: startMs,
@@ -390,6 +392,119 @@ export async function toolGetBlockStatus(
 }
 
 /**
+ * update_block — same UID, SEQUENCE+1, METHOD:REQUEST to every feed and guest.
+ * Asynchronous like block_time: patches the DO, respawns BlockTimeWorkflow on a
+ * new instance id (Cloudflare forbids reusing terminated ids), returns pending.
+ */
+export async function toolUpdateBlock(
+	env: Env,
+	args: {
+		uid: string;
+		title?: string;
+		/** Omit to leave unchanged; "" or null clears DESCRIPTION. */
+		description?: string | null;
+		start?: string;
+		end?: string;
+		force?: boolean;
+	},
+): Promise<Record<string, unknown>> {
+	try {
+		if (!args.uid?.trim()) throw new Error("uid is required");
+		const hasPatch =
+			args.title !== undefined ||
+			args.description !== undefined ||
+			args.start !== undefined ||
+			args.end !== undefined;
+		if (!hasPatch) {
+			throw new Error("Provide at least one of title, description, start, end");
+		}
+
+		const stub = getCalendarStub(env);
+		const existing = await stub.getBlock(args.uid);
+		if (!existing) return { error: `No block with uid ${args.uid}` };
+		if (existing.status === "cancelled") {
+			return { error: `Block ${args.uid} is cancelled — create a new block instead` };
+		}
+
+		const result = await stub.updateBlock({
+			uid: args.uid,
+			...(args.title !== undefined ? { title: args.title } : {}),
+			...(args.description !== undefined ? { description: args.description } : {}),
+			...(args.start !== undefined ? { dtstart: parseIso("start", args.start) } : {}),
+			...(args.end !== undefined ? { dtend: parseIso("end", args.end) } : {}),
+			force: args.force,
+		});
+
+		if (!result.ok) {
+			if (result.reason === "conflict") {
+				return {
+					status: "conflict",
+					conflicts: (result.conflicts ?? []).map((c) => ({
+						start: iso(c.start),
+						end: iso(c.end),
+						source: c.source,
+						...(c.summary ? { summary: c.summary } : {}),
+					})),
+					hint: "The new window overlaps existing busy time. Pass force: true to update anyway.",
+				};
+			}
+			if (result.reason === "cancelled") {
+				return { error: `Block ${args.uid} is cancelled — create a new block instead` };
+			}
+			return { error: `No block with uid ${args.uid}` };
+		}
+
+		const priorId = result.previous_workflow_id ?? workflowIdForUid(args.uid);
+		try {
+			const prior = await env.BLOCK_WORKFLOW.get(priorId);
+			await prior.terminate();
+		} catch {
+			// already finished or never started
+		}
+
+		let instance: { id: string };
+		try {
+			instance = await env.BLOCK_WORKFLOW.create({
+				id: workflowInstanceId(args.uid, result.sequence),
+				params: {
+					uid: args.uid,
+					sequence: result.sequence,
+					title: result.title,
+					...(result.description ? { description: result.description } : {}),
+					dtstart: result.dtstart,
+					dtend: result.dtend,
+				},
+			});
+		} catch (e) {
+			const message = `Invite workflow failed to start: ${(e as Error).message}`;
+			await stub.recordBlockError(args.uid, message);
+			return {
+				uid: args.uid,
+				status: "pending",
+				sequence: result.sequence,
+				workflow_failed: true,
+				error: message,
+				note: "The block was updated and counts as busy, but NO update invites were sent. Retry update_block or investigate before relying on it.",
+			};
+		}
+		await stub.setBlockWorkflowId(args.uid, instance.id);
+
+		return {
+			uid: args.uid,
+			status: "pending",
+			sequence: result.sequence,
+			title: result.title,
+			description: result.description,
+			start: iso(result.dtstart),
+			end: iso(result.dtend),
+			note: "Block updated (same uid, SEQUENCE bumped). Update invites are being sent in the background — delivery is NOT yet confirmed. Verify with get_block_status before telling the user invites were sent.",
+		};
+	} catch (e) {
+		return { error: (e as Error).message };
+	}
+}
+
+/**
  * cancel_block — METHOD:CANCEL to every account with a bumped SEQUENCE;
  * plain DO update + email sends, no workflow needed (spec §8 notes).
  */
@@ -409,7 +524,8 @@ export async function toolCancelBlock(
 
 		// Stop the acceptance workflow if it's still waiting.
 		try {
-			const instance = await env.BLOCK_WORKFLOW.get(workflowIdForUid(args.uid));
+			const instanceId = block.workflow_id ?? workflowIdForUid(args.uid);
+			const instance = await env.BLOCK_WORKFLOW.get(instanceId);
 			await instance.terminate();
 		} catch {
 			// already finished or never started — fine

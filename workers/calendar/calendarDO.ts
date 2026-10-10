@@ -295,6 +295,7 @@ export class CalendarDO extends DurableObject<Env> {
 		sequence: number;
 		status: string;
 		last_error: string | null;
+		workflow_id: string | null;
 		attendees: Array<{ feed_id: string; partstat: string; replied_at: number | null }>;
 		guests: Array<{ guest_email: string; partstat: string; replied_at: number | null }>;
 	} | null> {
@@ -320,6 +321,7 @@ export class CalendarDO extends DurableObject<Env> {
 			sequence: block.sequence,
 			status: block.status,
 			last_error: block.last_error,
+			workflow_id: block.workflow_id ?? null,
 			attendees: attendees.map((a) => ({
 				feed_id: a.feed_id,
 				partstat: a.partstat,
@@ -400,12 +402,13 @@ export class CalendarDO extends DurableObject<Env> {
 		}));
 	}
 
-	/** Overlapping busy time (for block_time conflict detection). */
+	/** Overlapping busy time (for block_time / update_block conflict detection). */
 	async findConflicts(
 		dtstart: number,
 		dtend: number,
+		opts?: { excludeUid?: string },
 	): Promise<Array<{ start: number; end: number; source: string; summary: string | null }>> {
-		const { busy } = await this.getAvailability(dtstart, dtend);
+		const { busy } = await this.getAvailability(dtstart, dtend, opts);
 		return busy.filter((b) => b.end > dtstart && b.start < dtend);
 	}
 
@@ -571,6 +574,115 @@ export class CalendarDO extends DurableObject<Env> {
 		return { ok: true, sequence };
 	}
 
+	/**
+	 * Patch a live block in place (same UID, bumped SEQUENCE). Resets attendee
+	 * and guest partstats to NEEDS-ACTION so clients re-accept the update.
+	 * Conflict-checks new times excluding this uid unless force.
+	 */
+	async updateBlock(input: {
+		uid: string;
+		title?: string;
+		/** undefined = leave unchanged; null or "" = clear */
+		description?: string | null;
+		dtstart?: number;
+		dtend?: number;
+		force?: boolean;
+	}): Promise<
+		| {
+				ok: true;
+				sequence: number;
+				title: string;
+				description: string | null;
+				dtstart: number;
+				dtend: number;
+				previous_workflow_id: string | null;
+		  }
+		| {
+				ok: false;
+				reason: "missing" | "cancelled" | "conflict";
+				conflicts?: Array<{
+					start: number;
+					end: number;
+					source: string;
+					summary: string | null;
+				}>;
+		  }
+	> {
+		return this.ctx.blockConcurrencyWhile(async () => {
+			const [block] = await this.db
+				.select()
+				.from(schema.blocks)
+				.where(eq(schema.blocks.uid, input.uid));
+			if (!block) return { ok: false as const, reason: "missing" as const };
+			if (block.status === "cancelled") {
+				return { ok: false as const, reason: "cancelled" as const };
+			}
+
+			const title =
+				input.title !== undefined ? input.title.trim() : block.title;
+			if (!title) {
+				throw new Error("title must not be empty");
+			}
+			let description: string | null = block.description ?? null;
+			if (input.description !== undefined) {
+				description =
+					input.description === null || input.description === ""
+						? null
+						: input.description.trim() || null;
+			}
+			const dtstart = input.dtstart ?? block.dtstart;
+			const dtend = input.dtend ?? block.dtend;
+			if (dtend <= dtstart) throw new Error("end must be after start");
+
+			const timesChanged =
+				dtstart !== block.dtstart || dtend !== block.dtend;
+			if (timesChanged && !input.force) {
+				const conflicts = await this.findConflicts(dtstart, dtend, {
+					excludeUid: input.uid,
+				});
+				if (conflicts.length > 0) {
+					return { ok: false as const, reason: "conflict" as const, conflicts };
+				}
+			}
+
+			const sequence = block.sequence + 1;
+			const previous_workflow_id = block.workflow_id;
+
+			await this.db
+				.update(schema.blocks)
+				.set({
+					title,
+					description,
+					dtstart,
+					dtend,
+					sequence,
+					status: "pending",
+					last_error: null,
+				})
+				.where(eq(schema.blocks.uid, input.uid));
+
+			const sqlStorage = this.ctx.storage.sql;
+			sqlStorage.exec(
+				`UPDATE block_attendees SET partstat = 'NEEDS-ACTION', replied_at = NULL WHERE uid = ?`,
+				input.uid,
+			);
+			sqlStorage.exec(
+				`UPDATE block_guests SET partstat = 'NEEDS-ACTION', replied_at = NULL WHERE uid = ?`,
+				input.uid,
+			);
+
+			return {
+				ok: true as const,
+				sequence,
+				title,
+				description,
+				dtstart,
+				dtend,
+				previous_workflow_id,
+			};
+		});
+	}
+
 	async setBlockWorkflowId(uid: string, workflowId: string): Promise<void> {
 		await this.db
 			.update(schema.blocks)
@@ -641,6 +753,7 @@ export class CalendarDO extends DurableObject<Env> {
 	async getAvailability(
 		windowStartMs: number,
 		windowEndMs: number,
+		opts?: { excludeUid?: string },
 	): Promise<{
 		busy: Array<{ start: number; end: number; source: string; summary: string | null }>;
 		feed_warnings: Array<{ feed_id: string; stale_hours: number; last_error: string | null }>;
@@ -675,7 +788,11 @@ export class CalendarDO extends DurableObject<Env> {
 				summary: e.summary,
 			})),
 			...blockRows
-				.filter((b) => ["pending", "partial", "confirmed"].includes(b.status))
+				.filter(
+					(b) =>
+						["pending", "partial", "confirmed"].includes(b.status) &&
+						b.uid !== opts?.excludeUid,
+				)
 				.map((b) => ({
 					start: b.dtstart,
 					end: b.dtend,
