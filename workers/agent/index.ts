@@ -36,6 +36,7 @@ import {
 	toolFindFreeSlots,
 	toolBlockTime,
 	toolGetBlockStatus,
+	toolUpdateBlock,
 	toolCancelBlock,
 	toolDeleteBlock,
 	toolPurgeCancelledBlocks,
@@ -126,7 +127,8 @@ These answer different questions — pick by what was actually asked:
 - **"What's on my calendar?" / "what do I have Thursday?"** → list_calendar_events. It returns the events themselves, including FREE/transparent ones (all-day markers, OOO, holidays).
 - **"When am I free/busy?"** → get_availability (busy intervals only) or find_free_slots (bookable gaps).
 - get_availability deliberately omits FREE/transparent events, so never use it to describe what is ON the calendar — you will silently miss entries. Conversely, do not use list_calendar_events to judge availability: a returned event with busy:false does not block time.
-- Only call block_time when the operator explicitly tells you to block or book time — never block time on your own initiative from an inbound email.`;
+- Only call block_time when the operator explicitly tells you to block or book time — never block time on your own initiative from an inbound email.
+- Prefer update_block over cancel+recreate when changing title, description, or times on an existing block (same UID, SEQUENCE bump).`;
 
 /**
  * Fetch the custom system prompt for a mailbox from its R2 settings.
@@ -389,6 +391,35 @@ function createEmailTools(env: Env, mailboxId: string) {
 			}),
 			execute: async ({ uid }: { uid: string }): Promise<unknown> => {
 				return toolGetBlockStatus(env, { uid });
+			},
+		}),
+
+		update_block: defineTool({
+			description:
+				"Update an existing block in place (same UID, SEQUENCE+1). Prefer this over cancel+recreate for title, description, or time changes. Only use when the operator explicitly asks.",
+			parameters: z.object({
+				uid: z.string().describe("The block uid returned by block_time"),
+				title: z.string().optional().describe("New title; omit to leave unchanged"),
+				description: z
+					.string()
+					.nullable()
+					.optional()
+					.describe(
+						"New agenda/notes. Omit to leave unchanged; empty string or null clears DESCRIPTION",
+					),
+				start: z.string().optional().describe("New start, ISO 8601"),
+				end: z.string().optional().describe("New end, ISO 8601"),
+				force: z.boolean().optional().describe("Update even if it conflicts"),
+			}),
+			execute: async (args: {
+				uid: string;
+				title?: string;
+				description?: string | null;
+				start?: string;
+				end?: string;
+				force?: boolean;
+			}): Promise<unknown> => {
+				return toolUpdateBlock(env, args);
 			},
 		}),
 

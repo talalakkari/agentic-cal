@@ -178,6 +178,11 @@ async function archiveRaw(
 	});
 }
 
+async function resolveWorkflowInstanceId(env: Env, uid: string): Promise<string> {
+	const block = await getCalendarStub(env).getBlock(uid);
+	return block?.workflow_id ?? workflowIdForUid(uid);
+}
+
 async function notifyWorkflow(
 	env: Env,
 	uid: string,
@@ -185,7 +190,8 @@ async function notifyWorkflow(
 	partstat: string,
 ): Promise<void> {
 	try {
-		const instance = await env.BLOCK_WORKFLOW.get(workflowIdForUid(uid));
+		const instanceId = await resolveWorkflowInstanceId(env, uid);
+		const instance = await env.BLOCK_WORKFLOW.get(instanceId);
 		// Event type must be colon-free: Workflows' sendEvent rejects a `:` in the
 		// type with `invalid_event_type`, even when the workflow is actively
 		// waiting on it. Must match the hyphenated type the workflow registers in
@@ -206,7 +212,8 @@ async function notifyGuestWorkflow(
 	partstat: string,
 ): Promise<void> {
 	try {
-		const instance = await env.BLOCK_WORKFLOW.get(workflowIdForUid(uid));
+		const instanceId = await resolveWorkflowInstanceId(env, uid);
+		const instance = await env.BLOCK_WORKFLOW.get(instanceId);
 		const key = guestWorkflowKey(guestEmail);
 		await instance.sendEvent({
 			type: `reply-${key}`,

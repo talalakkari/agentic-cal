@@ -33,6 +33,18 @@ export function workflowIdForUid(uid: string): string {
 	return uid.replace(/[^A-Za-z0-9_-]/g, "_");
 }
 
+/**
+ * Workflow instance id for a block at a given SEQUENCE.
+ * Sequence 0 keeps the historical id (back-compat with in-flight creates).
+ * Sequence >= 1 uses a unique suffix: Cloudflare Workflow instance ids must
+ * not be reused after terminate/complete (Rules of Workflows).
+ */
+export function workflowInstanceId(uid: string, sequence: number): string {
+	const base = workflowIdForUid(uid);
+	if (sequence <= 0) return base;
+	return `${base}-s${sequence}`;
+}
+
 export async function pollFeeds(env: Env): Promise<
 	Array<{ feedId: string; status: string; events?: number }>
 > {

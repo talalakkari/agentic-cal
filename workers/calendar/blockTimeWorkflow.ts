@@ -1,11 +1,12 @@
 // BlockTimeWorkflow (docs/AGENTIC-CALENDAR-SPEC.md §8). One instance per
-// block; instance id = block UID. Canonical human-in-the-loop Workflows
-// pattern: independently retried steps, free hibernating waits, waitForEvent
-// for the asynchronous client acceptances arriving via the email() dispatch.
+// block SEQUENCE wave; instance id = workflowInstanceId(uid, sequence).
+// Canonical human-in-the-loop Workflows pattern: independently retried steps,
+// free hibernating waits, waitForEvent for the asynchronous client acceptances
+// arriving via the email() dispatch.
 //
-// The block row is written by the block_time tool BEFORE the workflow spawns
-// (pending blocks must count as busy with zero race), so the first step here
-// only verifies it exists.
+// The block row is written by block_time / update_block BEFORE the workflow
+// spawns (pending blocks must count as busy with zero race), so the first step
+// here only verifies it exists and reloads authoritative fields from the DO.
 
 import {
 	WorkflowEntrypoint,
@@ -21,6 +22,8 @@ import type { Env } from "../types";
 
 export interface BlockTimeParams {
 	uid: string;
+	/** SEQUENCE for this invite wave. Defaults to 0 for legacy create payloads. */
+	sequence?: number;
 	title: string;
 	description?: string;
 	dtstart: number;
@@ -47,18 +50,35 @@ export class BlockTimeWorkflow extends WorkflowEntrypoint<Env, BlockTimeParams> 
 	}
 
 	private async runBlock(event: WorkflowEvent<BlockTimeParams>, step: WorkflowStep) {
-		const { uid, title, description, dtstart, dtend } = event.payload;
+		const { uid } = event.payload;
+		const sequence = event.payload.sequence ?? 0;
 
-		const { feeds, guests } = (await step.do("load-targets", async () => {
+		const loaded = (await step.do("load-targets", async () => {
 			const stub = getCalendarStub(this.env);
 			const block = await stub.getBlock(uid);
 			if (!block) throw new Error(`Block ${uid} not found — was it cancelled before start?`);
-			return { feeds: await stub.listFeeds(), guests: block.guests };
-		})) as { feeds: FeedRow[]; guests: BlockGuestRow[] };
+			return {
+				feeds: await stub.listFeeds(),
+				guests: block.guests,
+				title: block.title,
+				description: block.description,
+				dtstart: block.dtstart,
+				dtend: block.dtend,
+			};
+		})) as {
+			feeds: FeedRow[];
+			guests: BlockGuestRow[];
+			title: string;
+			description: string | null;
+			dtstart: number;
+			dtend: number;
+		};
+
+		const { feeds, guests, title, description, dtstart, dtend } = loaded;
 
 		const inviteParams: Omit<InviteParams, "method"> = {
 			uid,
-			sequence: 0,
+			sequence,
 			title,
 			...(description ? { description } : {}),
 			dtstartMs: dtstart,
@@ -72,9 +92,9 @@ export class BlockTimeWorkflow extends WorkflowEntrypoint<Env, BlockTimeParams> 
 					{ retries: { limit: 3, delay: "30 seconds", backoff: "exponential" } },
 					async () => {
 						const stub = getCalendarStub(this.env);
-						if (await stub.wasInviteSent(uid, feed.id, 0)) return;
+						if (await stub.wasInviteSent(uid, feed.id, sequence)) return;
 						await sendImip(this.env, feed, { method: "REQUEST", ...inviteParams });
-						await stub.markInviteSent(uid, feed.id, 0);
+						await stub.markInviteSent(uid, feed.id, sequence);
 					},
 				),
 			),
@@ -87,12 +107,12 @@ export class BlockTimeWorkflow extends WorkflowEntrypoint<Env, BlockTimeParams> 
 					{ retries: { limit: 3, delay: "30 seconds", backoff: "exponential" } },
 					async () => {
 						const stub = getCalendarStub(this.env);
-						if (await stub.wasGuestInviteSent(uid, guest.guest_email, 0)) return;
+						if (await stub.wasGuestInviteSent(uid, guest.guest_email, sequence)) return;
 						await sendImipToGuest(this.env, guest.guest_email, {
 							method: "REQUEST",
 							...inviteParams,
 						});
-						await stub.markGuestInviteSent(uid, guest.guest_email, 0);
+						await stub.markGuestInviteSent(uid, guest.guest_email, sequence);
 					},
 				),
 			),
